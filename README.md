@@ -6,6 +6,10 @@ An AI-powered tool for automated and assisted annotation of satellite imagery.
 
 The Satellite Image Annotation Tool (SAT-Annotator) is designed to streamline the process of annotating satellite images using artificial intelligence. This tool helps researchers, GIS specialists, and remote sensing analysts to quickly identify, label, and extract features from satellite imagery.
 
+## Sponsorship
+
+This project is sponsored by the Egyptian Space Agency (EgSA).
+
 ## Features
 
 **Current:**
