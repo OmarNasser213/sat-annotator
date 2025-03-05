@@ -19,11 +19,15 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 - Image retrieval endpoint
 - Docker containerization for easy deployment
 - Automatic image metadata extraction (resolution)
+- AI-powered segmentation using Segment Anything Model (SAM)
+- Point-prompt based segmentation
+- Automatic polygon generation from segmentation masks
+- GeoJSON export format support
 
 **Planned:**
-- AI-assisted annotation for common features (buildings, roads, vegetation)
+- Multiple prompt types (box, points, text)
 - Manual annotation tools with intuitive UI
-- Export annotations in common formats (GeoJSON, Shapefile)
+- Export annotations in additional formats (Shapefile)
 - Model training on custom datasets
 
 ## Technology Stack
@@ -31,8 +35,13 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 - **Backend**: Python, FastAPI
 - **Database**: PostgreSQL 16
 - **ORM**: SQLAlchemy
-- **Machine Learning**: TensorFlow
-- **Image Processing**: Pillow
+- **AI Models**: 
+  - Segment Anything Model (SAM)
+  - TensorFlow
+- **Image Processing**: 
+  - OpenCV
+  - Pillow
+  - PyTorch
 - **Containerization**: Docker
 - **Data Processing**: NumPy
 
@@ -42,6 +51,8 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 
 - Docker and Docker Compose
 - Git
+- Python 3.11+
+- CUDA-capable GPU (optional, for faster segmentation)
 
 ### Quick Start
 
@@ -127,6 +138,25 @@ Expected response:
 ]
 ```
 
+#### Generate Segmentation
+```bash
+curl -X POST http://localhost:8000/api/segment/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_id": 1,
+    "x": 0.5,
+    "y": 0.5
+  }'
+```
+
+Expected response:
+```json
+{
+  "success": true,
+  "polygon": [[x1,y1], [x2,y2], ...],
+  "annotation_id": 1
+}
+```
 
 #### API Documentation
 - Interactive API docs: http://localhost:8000/docs
@@ -139,6 +169,7 @@ Expected response:
 | `/` | GET | Health check, returns welcome message |
 | `/api/upload-image/` | POST | Upload satellite imagery |
 | `/api/images/` | GET | Retrieve list of all uploaded images |
+| `/api/segment/` | POST | Generate segmentation from point prompt |
 
 ## Database Schema
 
@@ -148,10 +179,12 @@ The application uses PostgreSQL with the following structure:
 - **labels**: Contains annotation categories (building, road, etc.)
 - **ai_models**: Tracks machine learning models used for annotation
 - **annotation_files**: Records annotation data associated with images
+  - New: Supports auto-generated annotations from SAM
 
 Relationships:
 - An image can have multiple annotation files
 - Annotation files can be linked to AI models that generated them
+- Annotations store GeoJSON formatted polygons
 
 ## Development Roadmap
 
@@ -160,10 +193,12 @@ Relationships:
 - [x] Database integration with PostgreSQL
 - [x] Image upload functionality
 - [x] Image metadata extraction
-- [ ] Basic image visualization
-- [ ] AI model integration for automatic feature detection
+- [x] SAM model integration
+- [x] Point-prompt segmentation
+- [x] GeoJSON export
+- [ ] Multiple prompt types support
 - [ ] Manual annotation interface
-- [ ] Export functionality
+- [ ] Additional export formats
 - [ ] User authentication
 
 ## License
