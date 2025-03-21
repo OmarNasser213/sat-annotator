@@ -69,3 +69,22 @@ def get_images(
     """Get list of uploaded images"""
     images = db.query(ImageModel).offset(skip).limit(limit).all()
     return images
+
+
+
+@router.get("/images/{image_id}/", response_model=Image)
+def get_image(image_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieve a specific image by its ID.
+    """
+    # Fetch image from the database
+    image = db.query(ImageModel).filter(ImageModel.image_id == image_id).first()
+
+    # Handle case where image doesn't exist
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Image with ID {image_id} not found"
+        )
+
+    return image
