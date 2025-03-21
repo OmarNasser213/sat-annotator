@@ -24,8 +24,9 @@ RUN pip install 'git+https://github.com/facebookresearch/segment-anything.git'
 RUN mkdir -p /app/models \
     && wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth -P /app/models/
 
-# Create annotations directory (outside /app/app to avoid volume overwrite)
+# Create directories for annotations and uploads
 RUN mkdir -p /app/annotations
+RUN mkdir -p /app/uploads
 
 # Copy the rest of the application
 COPY . .

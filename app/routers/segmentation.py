@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import json
 from pathlib import Path
+import os
 
 router = APIRouter()
 segmenter = SAMSegmenter()
@@ -32,7 +33,20 @@ async def segment_from_point(
         raise HTTPException(status_code=404, detail="Image not found")
     
     try:
-        height, width = segmenter.set_image(image.file_path)
+        # Handle both absolute and relative paths for image_path
+        image_path = image.file_path
+        if not os.path.isabs(image_path):
+            # If it's a relative path, convert to absolute path within the container
+            if image_path.startswith("uploads/"):
+                image_path = "/app/" + image_path
+            else:
+                image_path = "/app/uploads/" + os.path.basename(image_path)
+        
+        # Check if file exists
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file not found at {image_path}")
+            
+        height, width = segmenter.set_image(image_path)
         
         pixel_x = int(prompt.x * width)
         pixel_y = int(prompt.y * height)

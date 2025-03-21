@@ -4,8 +4,8 @@ from pathlib import Path
 from fastapi import UploadFile
 from PIL import Image
 
-# Create upload directory if it doesn't exist
-UPLOAD_DIR = Path("uploads")
+# Create upload directory with absolute path
+UPLOAD_DIR = Path("/app/uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 async def save_upload_file(file: UploadFile) -> dict:
