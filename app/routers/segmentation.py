@@ -27,29 +27,23 @@ async def segment_from_point(
     db: Session = Depends(get_db)
 ):
     """Generate segmentation from a point click"""
-    # Get image from database
     image = db.query(ImageModel).filter(ImageModel.image_id == prompt.image_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
     try:
-        # Set image in segmenter
         height, width = segmenter.set_image(image.file_path)
         
-        # Convert normalized coordinates to pixel coordinates
         pixel_x = int(prompt.x * width)
         pixel_y = int(prompt.y * height)
         
-        # Generate mask
         mask = segmenter.predict_from_point([pixel_x, pixel_y])
         
-        # Convert mask to polygon
         polygon = segmenter.mask_to_polygon(mask)
         if not polygon:
             raise HTTPException(status_code=400, detail="Could not generate polygon from mask")
         
-        # Save annotation
-        annotation_dir = Path("annotations")
+        annotation_dir = Path("/app/annotations")  # Fixed path in container
         annotation_dir.mkdir(exist_ok=True)
         
         annotation_path = annotation_dir / f"annotation_{image.image_id}_{len(polygon)}.json"
@@ -62,7 +56,6 @@ async def segment_from_point(
                 }
             }, f)
         
-        # Save to database
         annotation = AnnotationFile(
             image_id=image.image_id,
             file_path=str(annotation_path),
