@@ -7,27 +7,12 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
-      - ./uploads:/app/uploads  # Changed to bind mount for better visibility
-      - annotations:/app/annotations
+      - ./uploads:/app/uploads  # For image uploads
+      - annotations:/app/annotations  # For annotation data
     environment:
       - ENVIRONMENT=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/sat_annotator
-    depends_on:
-      - db
+      - SESSION_SECRET=your_session_secret_key_here
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-  db:
-    image: postgres:16
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/db:/docker-entrypoint-initdb.d
-    environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_DB=sat_annotator
-    ports:
-      - "5432:5432"
-
 volumes:
-  postgres_data:
   annotations:
