@@ -4,7 +4,7 @@ import { ImageGallery } from './components/ImageGallery'
 import { ImageViewer } from './components/ImageViewer'
 
 function App() {
-  const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   
   return (
     <div className="container mx-auto px-4 py-8">
@@ -23,15 +23,14 @@ function App() {
           >
             ← Back to Gallery
           </button>
-          
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-xl font-bold mb-4">Image Viewer</h2>
+            <div className="bg-white p-6 rounded-lg shadow-lg text-gray-800">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Image Viewer</h2>
             <ImageViewer imageId={selectedImageId} />
           </div>
         </div>
       ) : (
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <h2 className="text-xl font-bold mb-4">Image Gallery</h2>
+        <div className="bg-white p-6 rounded-lg shadow-lg text-gray-800">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">Image Gallery</h2>
           <ImageGallery onSelectImage={setSelectedImageId} />
         </div>
       )}

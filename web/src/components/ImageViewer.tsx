@@ -6,7 +6,7 @@ import type { Image } from '../services/api';
 const BACKEND_URL = 'http://localhost:8000';
 
 interface ImageViewerProps {
-  imageId: number;
+  imageId: string;  // Changed from number to string for UUID-based IDs
 }
 
 export const ImageViewer = ({ imageId }: ImageViewerProps) => {
