@@ -24,7 +24,8 @@ export interface SegmentationRequest {
 export interface SegmentationResponse {
   success: boolean;
   polygon: number[][];
-  annotation_id?: number;
+  annotation_id?: string;
+  cached?: boolean; // Indicates if the segmentation was retrieved from cache
 }
 
 // API URL configuration
