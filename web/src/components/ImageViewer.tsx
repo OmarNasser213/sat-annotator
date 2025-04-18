@@ -14,6 +14,8 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
   const [segmentation, setSegmentation] = useState<SegmentationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [hasSegmented, setHasSegmented] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -26,6 +28,9 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
         setError(null);
         const imageData = await api.getImage(imageId);
         setImage(imageData);
+        // Reset segmentation state for new image
+        setSegmentation(null);
+        setHasSegmented(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -50,6 +55,10 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
     try {
       setLoading(true);
       setError(null);
+      setStatusMessage(hasSegmented ? 
+        'Getting segmentation from cache...' : 
+        'Processing image (first click takes longer)...'
+      );
       
       const segResponse = await api.segmentFromPoint({
         image_id: imageId,
@@ -58,6 +67,20 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
       });
       
       setSegmentation(segResponse);
+      
+      // Update message based on whether result was from cache
+      if (segResponse.cached) {
+        setStatusMessage('Retrieved segmentation from cache');
+      } else {
+        setStatusMessage('Image segmented successfully');
+        setHasSegmented(true);  // Mark that we've segmented this image once
+      }
+      
+      // Clear status message after 3 seconds
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -143,13 +166,22 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
         />
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
-            <div className="text-white">Processing...</div>
+            <div className="text-white">{hasSegmented ? 'Processing...' : 'Segmenting image (first click may take longer)...'}</div>
           </div>
         )}
       </div>
       
+      {statusMessage && (
+        <div className={`text-sm ${segmentation?.cached ? 'text-green-600' : 'text-blue-600'} font-medium`}>
+          {statusMessage}
+        </div>
+      )}
+      
       <div className="text-sm text-gray-600">
         Click anywhere on the image to generate segmentation
+        {hasSegmented && (
+          <span className="ml-1 text-green-600">(subsequent clicks will use cached results)</span>
+        )}
       </div>
       
       {segmentation && (
@@ -158,6 +190,9 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
           <div className="text-sm">
             <p>Annotation ID: {segmentation.annotation_id}</p>
             <p>Polygon points: {segmentation.polygon.length}</p>
+            {segmentation.cached && (
+              <p className="text-green-600 font-medium">Result retrieved from cache</p>
+            )}
           </div>
         </div>
       )}
