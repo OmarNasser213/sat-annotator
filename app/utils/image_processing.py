@@ -4,8 +4,16 @@ from pathlib import Path
 from fastapi import UploadFile
 from PIL import Image
 
-# Create upload directory with absolute path
-UPLOAD_DIR = Path("/app/uploads")
+# Determine if we're running in Docker or locally
+in_docker = os.path.exists('/.dockerenv')
+
+# Create upload directory with the appropriate path
+if in_docker:
+    UPLOAD_DIR = Path("/app/uploads")
+else:
+    # For local development, use a path relative to the project root
+    UPLOAD_DIR = Path(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads"))
+
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 async def save_upload_file(file: UploadFile) -> dict:
@@ -13,8 +21,7 @@ async def save_upload_file(file: UploadFile) -> dict:
     # Generate unique filename
     file_extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{file_extension}"
-    
-    # Create full path
+      # Create full path
     file_path = UPLOAD_DIR / unique_filename
     
     # Save the file
@@ -34,12 +41,14 @@ async def save_upload_file(file: UploadFile) -> dict:
     # Get file size
     file_size = os.path.getsize(file_path)
     
+    # Store only the filename for the path to make it work in both Docker and local environments
+    # This will be served from the /uploads/ route
     return {
         "filename": unique_filename,
         "original_filename": file.filename,
         "size": file_size,
         "content_type": file.content_type,
-        "path": str(file_path),
+        "path": f"uploads/{unique_filename}",  # Use relative path for consistent access
         "resolution": resolution
     }
 

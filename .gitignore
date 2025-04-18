@@ -49,6 +49,9 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+
+# Large model files
+models/*.pth
 cover/
 
 # Translations

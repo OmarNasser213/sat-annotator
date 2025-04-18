@@ -14,10 +14,11 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 
 **Current:**
 - RESTful API built with FastAPI
-- PostgreSQL database for image metadata storage
+- Session-based in-memory storage for image metadata (no database required)
 - File upload endpoint for satellite imagery
 - Image retrieval endpoint
 - Docker containerization for easy deployment
+- Local development support without Docker
 - Automatic image metadata extraction (resolution)
 - AI-powered segmentation using Segment Anything Model (SAM)
 - Point-prompt based segmentation
@@ -33,28 +34,28 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 ## Technology Stack
 
 - **Backend**: Python, FastAPI
-- **Database**: PostgreSQL 16
-- **ORM**: SQLAlchemy
+- **Storage**: Session-based in-memory storage
 - **AI Models**: 
   - Segment Anything Model (SAM)
-  - TensorFlow
+  - PyTorch
 - **Image Processing**: 
   - OpenCV
   - Pillow
-  - PyTorch
-- **Containerization**: Docker
+- **Containerization**: Docker (optional)
 - **Data Processing**: NumPy
+- **Frontend**: React, TypeScript, Tailwind CSS
 
 ## Installation & Setup
 
 ### Prerequisites
 
-- Docker and Docker Compose
 - Git
-- Python 3.11+
+- Python 3.10+ (Python 3.12 recommended for local development)
+- Node.js and npm (for frontend)
+- Docker and Docker Compose (optional, for containerized deployment)
 - CUDA-capable GPU (optional, for faster segmentation)
 
-### Quick Start
+### Quick Start with Docker
 
 1. Clone the repository:
 ```bash
@@ -67,7 +68,44 @@ cd sat-annotator
 docker-compose up --build
 ```
 
-3. Access the API at `http://localhost:8000`
+3. Access the API at `http://localhost:8000` and the frontend at `http://localhost:5173`
+
+### Local Development Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/sat-annotator.git
+cd sat-annotator
+```
+
+2. Download the SAM model:
+   - Download the SAM model checkpoint from [https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)
+   - Place it in the `models/` directory
+
+3. Set up Python environment:
+```bash
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install backend dependencies
+pip install -r app/requirements_simplified.txt
+pip install git+https://github.com/facebookresearch/segment-anything.git
+```
+
+4. Run the backend:
+```bash
+uvicorn app.main:app --reload
+```
+
+5. Set up and run the frontend (in a separate terminal):
+```bash
+cd web
+npm install
+npm run dev
+```
+
+6. Access the API at `http://localhost:8000` and the frontend at `http://localhost:5173`
 
 ## Usage
 

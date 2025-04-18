@@ -2,11 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV, PyTorch, and PostgreSQL
+# Install system dependencies for OpenCV and PyTorch
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libglib2.0-0 \
-    libpq-dev \
     git \
     wget \
     && rm -rf /var/lib/apt/lists/*

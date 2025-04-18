@@ -3,15 +3,21 @@ import torch
 from segment_anything import sam_model_registry, SamPredictor
 import cv2
 from pathlib import Path
+import os
 
 class SAMSegmenter:
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.sam_checkpoint = "/app/models/sam_vit_h_4b8939.pth"  # Fixed path in container
+        
+        # Check if running in Docker or locally
+        in_docker = os.path.exists('/.dockerenv')
+        base_path = Path("/app") if in_docker else Path(".")
+        
+        self.sam_checkpoint = str(base_path / "models/sam_vit_h_4b8939.pth")
         self.model_type = "vit_h"
         
         if not Path(self.sam_checkpoint).exists():
-            raise FileNotFoundError(f"SAM checkpoint not found at {self.sam_checkpoint}. Ensure it’s included in the Docker container.")
+            raise FileNotFoundError(f"SAM checkpoint not found at {self.sam_checkpoint}. Please download it from https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth")
         
         self.sam = sam_model_registry[self.model_type](checkpoint=self.sam_checkpoint)
         self.sam.to(device=self.device)
