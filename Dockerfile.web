@@ -1,0 +1,21 @@
+# Dockerfile.web
+FROM node:20-alpine
+
+WORKDIR /web
+
+# Install netcat for health checking
+RUN apk add --no-cache netcat-openbsd
+
+COPY web/package.json web/package-lock.json ./
+RUN npm install
+
+COPY web .
+
+# Make the wait script executable
+COPY web/wait-for-backend.sh /wait-for-backend.sh
+RUN chmod +x /wait-for-backend.sh
+
+EXPOSE 5173
+
+# Use the wait script before starting the app
+CMD ["/wait-for-backend.sh", "npm", "run", "dev"]

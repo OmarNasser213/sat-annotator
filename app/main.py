@@ -33,6 +33,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Health check endpoint for Docker container orchestration
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 # Include session-based routers
 app.include_router(session_images.router, prefix="/api", tags=["images"])
 app.include_router(session_segmentation.router, prefix="/api", tags=["segmentation"])

@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { api, SegmentationResponse } from '../services/api';
+import { api, SegmentationResponse, API_BASE_URL } from '../services/api';
 import type { Image } from '../services/api';
-
-// Set the backend URL for image serving
-const BACKEND_URL = 'http://localhost:8000';
 
 interface ImageViewerProps {
   imageId: string;  // Changed from number to string for UUID-based IDs
@@ -132,10 +129,10 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
         ctx.fill();
       }
     };
-    
-    // Extract filename from file_path - handle both absolute and relative paths
+      // Extract filename from file_path - handle both absolute and relative paths
     const filename = image.file_path.split('/').pop();
-    img.src = `${BACKEND_URL}/uploads/${filename}`;
+    // Use relative URL instead of hardcoded localhost
+    img.src = `/api/uploads/${filename}`;
     img.crossOrigin = "Anonymous"; // Needed for CORS if your API is on a different domain
     
     img.onerror = () => {

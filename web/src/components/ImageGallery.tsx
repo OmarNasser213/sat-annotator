@@ -2,9 +2,6 @@ import { useState, useEffect } from 'react';
 import { api, Image } from '../services/api';
 import { ImageUpload } from './ImageUpload';
 
-// Set the backend URL for image serving
-const BACKEND_URL = 'http://localhost:8000';
-
 interface ImageGalleryProps {
   onSelectImage: (imageId: string) => void;
 }
@@ -56,11 +53,11 @@ export const ImageGallery = ({ onSelectImage }: ImageGalleryProps) => {
         <ImageUpload onUploadSuccess={fetchImages} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {images.map((image) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">        {images.map((image) => {
           // Extract filename from file_path - handle both absolute and relative paths
           const filename = image.file_path.split('/').pop();
-          const imageUrl = `${BACKEND_URL}/uploads/${filename}`;
+          // Use a relative path instead of API_BASE_URL
+          const imageUrl = `/api/uploads/${filename}`;
           
           return (
             <div 
