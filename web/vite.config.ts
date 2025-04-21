@@ -1,58 +1,35 @@
-// filepath: d:\College\EgSA GP\sat-annotator\web\vite.config.ts
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
-import type { ServerResponse, IncomingMessage } from 'http';
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: true,  // Allow external connections
-    port: 5173,
-    strictPort: true,
-    proxy: {
-      '/api': {
-        target: 'http://backend:8000',
-        changeOrigin: true,
-        secure: false,  // Important for local development
-        rewrite: (path: string) => path.replace(/^\/api/, ''),
-        configure: (proxy: any) => {
-          proxy.on('error', (err: Error) => {
-            console.error('Proxy error:', err);
-          });
-          proxy.on('proxyReq', (proxyReq: any) => {
-            console.log('Proxying request to:', proxyReq.path);
-          });
-          proxy.on('proxyRes', (proxyRes: any, req: IncomingMessage) => {
-            console.log(`Proxy response: ${proxyRes.statusCode} for ${req.url}`);
-          });
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+
+  const API_BASE = env.VITE_API_URL || '/api';
+  const API_PROXY_TARGET = env.VITE_API_PROXY_TARGET || 'http://localhost:8000'; // default for local dev
+
+  return {
+    plugins: [react()],
+    server: {
+      host: true,
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        [API_BASE]: {
+          target: API_PROXY_TARGET,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path: string) => path.replace(new RegExp(`^${API_BASE}`), ''),
         },
-        // Enhanced connection handling
-        timeout: 15000,
-        proxyTimeout: 15000,
-        retry: 5,
-        errorHandler: (err: Error, _req: IncomingMessage, res: ServerResponse) => {
-          console.error('Proxy error handler:', err);
-          res.writeHead(500, {
-            'Content-Type': 'application/json',
-          });
-          res.end(JSON.stringify({ error: 'Backend service unavailable, please retry' }));
+        '/uploads': {
+          target: API_PROXY_TARGET,
+          changeOrigin: true,
+          secure: false,
         },
       },
-      '/uploads': {
-        target: 'http://backend:8000',
-        changeOrigin: true,
-        secure: false,
-        configure: (proxy: any) => {
-          proxy.on('error', (err: Error) => {
-            console.error('Uploads proxy error:', err);
-          });
-        },
-        timeout: 15000,
-      }
-    }
-  },
-  preview: {
-    port: 5173,
-    host: true
-  }
+    },
+    preview: {
+      port: 5173,
+      host: true,
+    },
+  };
 });
