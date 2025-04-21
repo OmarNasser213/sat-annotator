@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { api, SegmentationResponse, API_BASE_URL } from '../services/api';
+import { api, SegmentationResponse } from '../services/api';
 import type { Image } from '../services/api';
 
 interface ImageViewerProps {

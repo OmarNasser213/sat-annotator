@@ -10,6 +10,9 @@ export const ImageGallery = ({ onSelectImage }: ImageGalleryProps) => {
   const [images, setImages] = useState<Image[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
   const fetchImages = async () => {
     try {
       setLoading(true);
@@ -57,7 +60,7 @@ export const ImageGallery = ({ onSelectImage }: ImageGalleryProps) => {
           // Extract filename from file_path - handle both absolute and relative paths
           const filename = image.file_path.split('/').pop();
           // Use a relative path instead of API_BASE_URL
-          const imageUrl = `/api/uploads/${filename}`;
+          const imageUrl = `${API_BASE}/uploads/${filename}`;
           
           return (
             <div 

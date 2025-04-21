@@ -25,7 +25,8 @@ services:
       - /web/node_modules
     working_dir: /web
     environment:
-      - VITE_API_URL=/api  # Now uses proxy
+      - VITE_API_PROXY_TARGET=http://backend:8000
+      - VITE_API_URL=/api
     depends_on:
       - backend
 
