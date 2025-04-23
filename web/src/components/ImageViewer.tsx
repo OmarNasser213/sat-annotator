@@ -41,14 +41,20 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
   // Handle canvas click for segmentation
   const handleCanvasClick = async (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || !image) return;
-    
+  
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    
-    // Calculate normalized coordinates (0 to 1)
-    const x = (e.clientX - rect.left) / canvas.width;
-    const y = (e.clientY - rect.top) / canvas.height;
-    
+  
+    // Use the displayed (scaled) dimensions of the canvas
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
+  
+    // Calculate normalized coordinates (0 to 1) based on displayed size
+    const x = (e.clientX - rect.left) / displayWidth;
+    const y = (e.clientY - rect.top) / displayHeight;
+  
+    console.log(`Clicked at normalized: x=${x}, y=${y}, display size: ${displayWidth}x${displayHeight}`);
+  
     try {
       setLoading(true);
       setError(null);
@@ -56,28 +62,26 @@ export const ImageViewer = ({ imageId }: ImageViewerProps) => {
         'Getting segmentation from cache...' : 
         'Processing image (first click takes longer)...'
       );
-      
+  
       const segResponse = await api.segmentFromPoint({
         image_id: imageId,
         x,
         y
       });
-      
+  
       setSegmentation(segResponse);
-      
-      // Update message based on whether result was from cache
+  
       if (segResponse.cached) {
         setStatusMessage('Retrieved segmentation from cache');
       } else {
         setStatusMessage('Image segmented successfully');
-        setHasSegmented(true);  // Mark that we've segmented this image once
+        setHasSegmented(true);
       }
-      
-      // Clear status message after 3 seconds
+  
       setTimeout(() => {
         setStatusMessage(null);
       }, 3000);
-      
+  
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

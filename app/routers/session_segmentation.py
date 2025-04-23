@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.responses import FileResponse
 from app.storage.session_manager import get_session_manager, SessionManager
 from app.storage.session_store import session_store
 from app.utils.sam_model import SAMSegmenter
@@ -9,6 +10,7 @@ from pathlib import Path
 import os
 import logging
 from datetime import datetime
+import cv2
 
 # Set up logging
 log_dir = Path("app/logs")
@@ -28,15 +30,15 @@ router = APIRouter()
 segmenter = SAMSegmenter()
 
 class PointPrompt(BaseModel):
-    image_id: str  # Now using UUID string instead of int
-    x: float  # Normalized coordinate (0-1)
-    y: float  # Normalized coordinate (0-1)
+    image_id: str
+    x: float
+    y: float
 
 class SegmentationResponse(BaseModel):
     success: bool
-    polygon: List[List[float]]  # List of [x,y] coordinates
-    annotation_id: Optional[str] = None  # Now using UUID string instead of int
-    cached: bool = False  # Indicates whether this result was from cache
+    polygon: List[List[float]]
+    annotation_id: Optional[str] = None
+    cached: bool = False
 
 @router.post("/segment/", response_model=SegmentationResponse)
 async def segment_from_point(
@@ -50,26 +52,30 @@ async def segment_from_point(
         raise HTTPException(status_code=404, detail="Image not found")
     
     try:
+        # Determine if running in Docker
+        in_docker = os.path.exists('/.dockerenv')
+        
+        # Define annotation directory
+        if in_docker:
+            annotation_dir = Path("/app/annotations")
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            annotation_dir = Path(os.path.join(base_dir, "annotations"))
+        annotation_dir.mkdir(exist_ok=True)
+        
         # Get the image path from the session store
         stored_path = image.file_path
         
-        # Handle paths for both local development and Docker environments
-        in_docker = os.path.exists('/.dockerenv')
-        
+        # Construct image path
         if in_docker:
-            # In Docker environment
             if stored_path.startswith("uploads/"):
                 image_path = "/app/" + stored_path
             else:
                 image_path = "/app/uploads/" + os.path.basename(stored_path)
         else:
-            # In local development environment
             if stored_path.startswith("uploads/"):
-                # Convert relative path to absolute path in the local environment
-                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 image_path = os.path.join(base_dir, stored_path)
             else:
-                # Handle any other format (like full paths)
                 image_path = stored_path
         
         # Check if file exists
@@ -81,31 +87,35 @@ async def segment_from_point(
         
         logger.debug(f"Processing image: {image_path}, cached: {is_cached}")
         
-        # Set the image in the segmenter (this will use cache if available)
+        # Set the image in the segmenter
         height, width = segmenter.set_image(image_path)
         pixel_x = int(prompt.x * width)
         pixel_y = int(prompt.y * height)
         
         logger.debug(f"Click at coordinates: ({pixel_x}, {pixel_y}) for image size: {width}x{height}")
         
-        # Get mask from point (either new or cached)
+        # Get mask from point
         mask = segmenter.predict_from_point([pixel_x, pixel_y])
+        
+        # Save the mask
+        mask_image_path = annotation_dir / f"mask_{session_id}_{image.image_id}.png"
+        cv2.imwrite(str(mask_image_path), mask)
+        logger.debug(f"Mask saved at {mask_image_path}")
+        
+        # Create and save overlay
+        original_image = cv2.imread(image_path)
+        mask_colored = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(original_image, 0.7, mask_colored, 0.3, 0)
+        overlay_path = annotation_dir / f"overlay_{session_id}_{image.image_id}.png"
+        cv2.imwrite(str(overlay_path), overlay)
+        logger.debug(f"Overlay saved at {overlay_path}")
+        
         polygon = segmenter.mask_to_polygon(mask)
         
         if not polygon:
             raise HTTPException(status_code=400, detail="Could not generate polygon from mask")
         
-        # Handle annotations directory path for both Docker and local environments
-        if in_docker:
-            annotation_dir = Path("/app/annotations")  # Docker path
-        else:
-            # For local development, use a path relative to the project root
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            annotation_dir = Path(os.path.join(base_dir, "annotations"))
-            
-        annotation_dir.mkdir(exist_ok=True)
-        
-        # Include session ID in the annotation filename to avoid conflicts
+        # Save GeoJSON
         annotation_path = annotation_dir / f"annotation_{session_id}_{image.image_id}_{len(polygon)}.json"
         with open(annotation_path, "w") as f:
             json.dump({
@@ -143,6 +153,16 @@ async def segment_from_point(
             detail=f"Error generating segmentation: {str(e)}"
         )
 
+@router.get("/masks/{session_id}/{image_id}/{mask_type}")
+async def get_mask_image(session_id: str, image_id: str, mask_type: str):
+    """Serve mask or overlay image for download or display."""
+    if mask_type not in ["mask", "overlay"]:
+        raise HTTPException(status_code=400, detail="Invalid mask_type. Use 'mask' or 'overlay'.")
+    mask_path = Path(f"/app/annotations/{mask_type}_{session_id}_{image_id}.png")
+    if not mask_path.exists():
+        raise HTTPException(status_code=404, detail=f"{mask_type} image not found")
+    return FileResponse(mask_path, media_type="image/png", filename=f"{mask_type}_{session_id}_{image_id}.png")
+
 @router.get("/annotations/{image_id}")
 async def get_image_annotations(
     image_id: str,
@@ -151,15 +171,12 @@ async def get_image_annotations(
     """Get all annotations for a specific image"""
     session_id = session_manager.session_id
     
-    # Check if image exists
     image = session_store.get_image(session_id, image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    # Get annotations for this image
     annotations = session_store.get_annotations(session_id, image_id)
     
-    # Load actual annotation data from files
     result = []
     for ann in annotations:
         try:
@@ -175,7 +192,6 @@ async def get_image_annotations(
                     "data": geojson
                 })
         except Exception as e:
-            # Skip annotations with errors
             continue
     
     return result
@@ -192,7 +208,6 @@ async def clear_image_cache(
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    # Get the absolute image path
     stored_path = image.file_path
     in_docker = os.path.exists('/.dockerenv')
     
@@ -208,7 +223,6 @@ async def clear_image_cache(
         else:
             image_path = stored_path
     
-    # Clear the cache for this image
     segmenter.clear_cache(image_path)
     
     return {"success": True, "message": f"Cache cleared for image {image_id}"}
