@@ -1,0 +1,8 @@
+# Test dependencies for sat-annotator backend
+httpx==0.28.1
+coverage==7.8.0
+pillow==11.2.1
+fastapi>=0.115.8
+starlette>=0.45.3
+python-multipart>=0.0.7
+uvicorn>=0.27.0
