@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="SAT-Annotator Logo"/>
+  <img src="docs/logo.png" alt="SAT-Annotator Logo" width="400"/>
 </p>
 
 # Satellite Image Annotation Tool
