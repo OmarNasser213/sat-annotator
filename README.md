@@ -1,3 +1,5 @@
+<img src="docs/logo.png" alt="SAT-Annotator Logo" width="200"/>
+
 # Satellite Image Annotation Tool
 
 An AI-powered tool for automated and assisted annotation of satellite imagery.
