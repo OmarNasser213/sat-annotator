@@ -1,29 +1,24 @@
-FROM python:3.11-alpine3.19
+FROM python:3.11-slim
 
 WORKDIR /app
 
 # Install system dependencies for OpenCV and PyTorch
-RUN apk update && apk add --no-cache \
-    mesa-gles \
-    mesa \
-    glib \
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     git \
     wget \
     curl \
-    build-base \
-    musl-dev \
-    linux-headers \
-    openblas-dev \
-    freetype-dev \
-    ffmpeg-dev \
-    libjpeg-turbo-dev \
+    build-essential \
+    libopenblas-dev \
+    libfreetype6-dev \
+    ffmpeg \
+    libjpeg-dev \
     libpng-dev \
     libffi-dev \
-    jpeg-dev \
-    gcc \
-    g++ \
-    make \
-    cmake
+    cmake \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY app/requirements.txt .
