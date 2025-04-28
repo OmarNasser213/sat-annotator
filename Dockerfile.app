@@ -1,11 +1,11 @@
-FROM python:3.11-alpine
+FROM python:3.11-alpine3.19
 
 WORKDIR /app
 
 # Install system dependencies for OpenCV and PyTorch
 RUN apk update && apk add --no-cache \
-    libgl \
-    mesa-gl \
+    mesa-gles \
+    mesa \
     glib \
     git \
     wget \
