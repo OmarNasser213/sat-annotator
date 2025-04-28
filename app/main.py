@@ -5,8 +5,15 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import os
 
+try:
+    # Check for test mode
+    from app.utils.test_utils import is_test_mode
+    test_mode = is_test_mode()
+except ImportError:
+    test_mode = False
+
 # Determine if we're running in Docker or locally
-in_docker = os.path.exists('/.dockerenv')
+in_docker = os.path.exists('/.dockerenv') and not test_mode
 
 # Set paths based on environment
 base_path = Path("/app") if in_docker else Path(".")
