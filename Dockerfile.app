@@ -1,24 +1,43 @@
-FROM python:alpine
+FROM python:3.11-alpine
 
 WORKDIR /app
 
 # Install system dependencies for OpenCV and PyTorch
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+RUN apk update && apk add --no-cache \
+    libgl \
+    mesa-gl \
+    glib \
     git \
     wget \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    build-base \
+    musl-dev \
+    linux-headers \
+    openblas-dev \
+    freetype-dev \
+    ffmpeg-dev \
+    libjpeg-turbo-dev \
+    libpng-dev \
+    libffi-dev \
+    jpeg-dev \
+    gcc \
+    g++ \
+    make \
+    cmake
 
 # Copy requirements first for better caching
 COPY app/requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Set environment variables for pip
+ENV PIP_DEFAULT_TIMEOUT=100 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
 
-# Install the Segment Anything library
-RUN pip install 'git+https://github.com/facebookresearch/segment-anything.git'
+# Install Python dependencies with special handling for problematic packages
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    # Install the Segment Anything library
+    pip install 'git+https://github.com/facebookresearch/segment-anything.git'
 
 # Download the SAM model checkpoint
 RUN mkdir -p /app/models \
