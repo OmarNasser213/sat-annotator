@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Debug</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; }
+        .debug-canvas { border: 2px solid red; width: 400px; height: 300px; }
+        button { margin: 5px; padding: 10px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Canvas Debug Test</h1>
+    
+    <button onclick="testBasicDrawing()">Test Basic Drawing</button>
+    <button onclick="testImageDrawing()">Test Image Drawing</button>
+    <button onclick="testWithDPR()">Test with DPR</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <canvas id="debugCanvas" class="debug-canvas"></canvas>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        const canvas = document.getElementById('debugCanvas');
+        const ctx = canvas.getContext('2d');
+        const logDiv = document.getElementById('log');
+        
+        function log(message) {
+            logDiv.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+            console.log(message);
+        }
+        
+        function clearLog() {
+            logDiv.textContent = '';
+        }
+        
+        function setupCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            
+            log(`Canvas rect: ${rect.width} x ${rect.height}`);
+            log(`Device pixel ratio: ${dpr}`);
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+            
+            log(`Canvas actual size: ${canvas.width} x ${canvas.height}`);
+            log(`Canvas style size: ${canvas.style.width} x ${canvas.style.height}`);
+        }
+        
+        function testBasicDrawing() {
+            log('=== Testing Basic Drawing ===');
+            setupCanvas();
+            
+            // Clear canvas
+            const rect = canvas.getBoundingClientRect();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            log('Canvas cleared');
+            
+            // Draw rectangle
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(10, 10, 100, 50);
+            log('Blue rectangle drawn at (10,10) size 100x50');
+            
+            // Draw circle
+            ctx.beginPath();
+            ctx.arc(200, 100, 30, 0, 2 * Math.PI);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            log('Red circle drawn at (200,100) radius 30');
+        }
+        
+        function testImageDrawing() {
+            log('=== Testing Image Drawing ===');
+            setupCanvas();
+            
+            const img = new Image();
+            img.onload = function() {
+                log(`Image loaded: ${img.naturalWidth} x ${img.naturalHeight}`);
+                
+                const rect = canvas.getBoundingClientRect();
+                ctx.clearRect(0, 0, rect.width, rect.height);
+                
+                // Draw at original size
+                ctx.drawImage(img, 50, 50);
+                log(`Image drawn at (50,50) original size`);
+                
+                // Draw scaled
+                ctx.drawImage(img, 150, 50, img.naturalWidth * 0.5, img.naturalHeight * 0.5);
+                log(`Image drawn at (150,50) 50% scale`);
+            };
+            
+            img.onerror = function() {
+                log('Failed to load image, creating test pattern instead');
+                const rect = canvas.getBoundingClientRect();
+                ctx.clearRect(0, 0, rect.width, rect.height);
+                
+                // Create a test pattern
+                for(let i = 0; i < 10; i++) {
+                    ctx.fillStyle = `hsl(${i * 36}, 70%, 50%)`;
+                    ctx.fillRect(i * 30, 50, 25, 25);
+                }
+                log('Test pattern drawn');
+            };
+            
+            // Create a simple test image
+            img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAFYSURBVBiVY/z//z8DJQAggJiQOQACCJkNEEDAQHEgAAiAYOIgABBAxIA8AAEELvj//38GBgYGBoAAAmcoKSlhYGdnZ2BgYGBgAAggZoAAAgaKAQFAAIED/P//HwwACCBkgQABBAwUAwKAAAIGioEAIIAYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGP5TAARAtf//fwYMAAggcCKOjo4ZAgwMDAwMDAwM/19AHT9++ACAAGJ89+4dAy4AEEDA5Pnz5wNCAy4AEEDA5AEIIGAw/gYQQMDk+Q8ggID5DyCA/v/794eBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgQHkDyCAXn//DkwAbz//rkRAHQgBhAwEEEDA5Pnz5//hgJD5B1QNigEBBAz+/9//T2CBAKC6AAgcB34QRDA5Pnz5++oABRQzUB1AAAEDxYAAIICA+Q8ggIDJEySAkIkDCCBkQAE/gR6CACIAAAABBH4AQQABv8AAv8DEQABBAAn8A8AAAv8An0AAv8AnEEAAAAABJRU5ErkJggg==';
+        }
+        
+        function testWithDPR() {
+            log('=== Testing Different DPR Scenarios ===');
+            
+            // Test different DPR values
+            [1, 1.25, 1.5, 2].forEach(testDPR => {
+                log(`\nTesting with simulated DPR: ${testDPR}`);
+                
+                const rect = canvas.getBoundingClientRect();
+                log(`Canvas rect: ${rect.width} x ${rect.height}`);
+                
+                canvas.width = rect.width * testDPR;
+                canvas.height = rect.height * testDPR;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(testDPR, testDPR);
+                
+                // Clear and draw
+                ctx.clearRect(0, 0, rect.width, rect.height);
+                
+                ctx.fillStyle = `hsl(${testDPR * 120}, 70%, 50%)`;
+                ctx.fillRect(10, 10, 50, 30);
+                ctx.fillText(`DPR: ${testDPR}`, 70, 30);
+                
+                log(`Drew test rectangle with DPR ${testDPR}`);
+                
+                // Small delay to see the effect
+                setTimeout(() => {}, 500);
+            });
+        }
+        
+        // Initial setup
+        log('Canvas debug test initialized');
+        setupCanvas();
+    </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .canvas-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #ccc;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Canvas Drawing Test</h1>
+    
+    <div class="controls">
+        <button onclick="drawRectangle()">Draw Rectangle</button>
+        <button onclick="drawCircle()">Draw Circle</button>
+        <button onclick="loadTestImage()">Load Test Image</button>
+        <button onclick="clearCanvas()">Clear Canvas</button>
+    </div>
+    
+    <div class="canvas-container">
+        <canvas id="testCanvas"></canvas>
+    </div>
+    
+    <div id="info"></div>
+
+    <script>
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = canvas.parentElement;
+        
+        function setupCanvas() {
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            
+            console.log('Setting up canvas:');
+            console.log('- Container dimensions:', rect.width, 'x', rect.height);
+            console.log('- Device pixel ratio:', dpr);
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+            
+            console.log('- Canvas actual size:', canvas.width, 'x', canvas.height);
+            console.log('- Canvas style size:', canvas.style.width, 'x', canvas.style.height);
+            
+            updateInfo();
+        }
+        
+        function updateInfo() {
+            const rect = container.getBoundingClientRect();
+            document.getElementById('info').innerHTML = `
+                <strong>Canvas Info:</strong><br>
+                Container: ${rect.width} x ${rect.height}<br>
+                Canvas actual: ${canvas.width} x ${canvas.height}<br>
+                Canvas style: ${canvas.style.width} x ${canvas.style.height}<br>
+                Device Pixel Ratio: ${window.devicePixelRatio || 1}
+            `;
+        }
+        
+        function clearCanvas() {
+            const rect = container.getBoundingClientRect();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            console.log('Canvas cleared with dimensions:', rect.width, 'x', rect.height);
+        }
+        
+        function drawRectangle() {
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(50, 50, 200, 100);
+            console.log('Blue rectangle drawn');
+        }
+        
+        function drawCircle() {
+            ctx.beginPath();
+            ctx.arc(400, 200, 50, 0, 2 * Math.PI);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            console.log('Red circle drawn');
+        }
+          function loadTestImage() {
+            const img = new Image();
+            img.onload = function() {
+                console.log('Test image loaded:', img.naturalWidth, 'x', img.naturalHeight);
+                clearCanvas();
+                
+                // Draw image at 50% scale
+                const scale = 0.5;
+                const x = 50;
+                const y = 50;
+                const width = img.naturalWidth * scale;
+                const height = img.naturalHeight * scale;
+                
+                console.log('Drawing image at:', x, y, width, height);
+                ctx.drawImage(img, x, y, width, height);
+                console.log('Test image drawn successfully');
+            };
+            
+            img.onerror = function() {
+                console.error('Failed to load test image');
+                // Draw a colored rectangle instead
+                ctx.fillStyle = 'green';
+                ctx.fillRect(50, 50, 300, 200);
+                console.log('Drew green rectangle as fallback');
+            };
+            
+            // Use a simple base64 test image (small red square)
+            img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+        }
+        
+        // Initialize
+        setupCanvas();
+        
+        // Handle resize
+        window.addEventListener('resize', function() {
+            setupCanvas();
+        });
+        
+        // Initial test
+        setTimeout(() => {
+            drawRectangle();
+            drawCircle();
+        }, 100);
+    </script>
+</body>
+</html>

@@ -47,6 +47,10 @@ async def segment_from_point(
 ):
     """Generate segmentation from a point click, with caching for subsequent clicks on the same image."""
     session_id = session_manager.session_id
+    
+    # Debug: log the received coordinates
+    logger.debug(f"Received segmentation request: image_id={prompt.image_id}, x={prompt.x}, y={prompt.y}")
+    
     image = session_store.get_image(session_id, prompt.image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")

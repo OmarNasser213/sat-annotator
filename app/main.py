@@ -27,7 +27,7 @@ annotations_dir = base_path / "annotations"
 annotations_dir.mkdir(exist_ok=True)
 
 # Define frontend directory for static files (if available)
-frontend_dir = base_path / "web/dist"
+frontend_dir = base_path / "web"
 
 app = FastAPI(title="Satellite Image Annotation Tool")
 
@@ -52,8 +52,8 @@ app.include_router(session_segmentation.router, prefix="/api", tags=["segmentati
 # Mount the uploads directory for static file serving
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
-# Mount frontend if the build directory exists
-if frontend_dir.exists():
+# Mount frontend if the web directory exists
+if frontend_dir.exists() and (frontend_dir / "index.html").exists():
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 else:
     @app.get("/")
@@ -62,4 +62,4 @@ else:
         
     @app.get("/frontend-status")
     def frontend_status():
-        return {"status": "not_mounted", "message": "Frontend build not found. Run 'npm run build' in the web directory."}
+        return {"status": "not_mounted", "message": "Frontend not found. Make sure the web directory contains index.html."}
