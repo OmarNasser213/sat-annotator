@@ -44,16 +44,18 @@
                     <h3><i class="fas fa-upload"></i> Upload Image</h3>
                     <div class="upload-area" id="uploadArea">
                         <div class="upload-content">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>Drop satellite image here or click to browse</p>
-                            <span class="file-types">Supports: JPG, PNG, TIFF, GeoTIFF</span>
+                            <i class="fas fa-cloud-upload-alt"></i>                            <p>Drop satellite images here or click to browse</p>
+                            <span class="file-types">Supports: JPG, PNG, TIFF, GeoTIFF (Multiple files allowed)</span>
                         </div>
-                        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.tiff,.tif,.geotiff" hidden>
+                        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.tiff,.tif,.geotiff" multiple hidden>
                     </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h3><i class="fas fa-images"></i> Images</h3>
+                </div>                <div class="sidebar-section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-images"></i> Images</h3>
+                        <button class="clear-all-btn" id="clearAllImages" title="Remove All Images">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
                     <div class="images-list" id="imagesList">
                         <div class="no-images">
                             <i class="fas fa-image"></i>
@@ -72,13 +74,9 @@
                         <button class="tool-btn" id="pointTool" data-tool="point">
                             <i class="fas fa-crosshairs"></i>
                             <span>AI Segment</span>
-                        </button>
-                        <button class="tool-btn" id="polygonTool" data-tool="polygon">
+                        </button>                        <button class="tool-btn" id="polygonTool" data-tool="polygon">
                             <i class="fas fa-draw-polygon"></i>
                             <span>Draw Polygon</span>
-                        </button>                        <button class="tool-btn" id="panTool" data-tool="pan">
-                            <i class="fas fa-hand-paper"></i>
-                            <span>Pan</span>
                         </button>                        <button class="tool-btn toggle-btn" id="editToggle" title="Toggle edit mode for selected annotation (Press E)">
                             <i class="fas fa-edit"></i>
                             <span>Edit Mode</span>
@@ -134,10 +132,9 @@
                 <div class="sidebar-section">
                     <h3><i class="fas fa-cogs"></i> AI Segment Settings</h3>
                     <div class="settings-section">
-                        <div class="setting-group">
-                            <label for="maxPoints">Max Points:</label>
-                            <input type="range" id="maxPoints" min="5" max="50" value="20" step="1">
-                            <span id="maxPointsValue">20</span>
+                        <div class="setting-group">                            <label for="maxPoints">Max Points:</label>
+                            <input type="range" id="maxPoints" min="5" max="50" value="10" step="1">
+                            <span id="maxPointsValue">10</span>
                         </div>
                         <div class="setting-group">
                             <label for="simplificationQuality">Quality:</label>
@@ -177,9 +174,11 @@
                         <span id="zoomLevel">100%</span>
                         <button id="zoomOut" class="control-btn">
                             <i class="fas fa-minus"></i>
-                        </button>
-                        <button id="fitToScreen" class="control-btn">
+                        </button>                        <button id="fitToScreen" class="control-btn">
                             <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                        <button id="panTool" class="control-btn tool-btn" data-tool="pan" title="Pan tool">
+                            <i class="fas fa-hand-paper"></i>
                         </button>
                     </div>
                     <div class="coordinates">
