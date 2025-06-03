@@ -8,9 +8,7 @@ from typing import Dict, Tuple, List, Optional
 
 class SAMSegmenter:
     def __init__(self):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        # Check if running in Docker or locally
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')        # Check if running in Docker or locally
         in_docker = os.path.exists('/.dockerenv')
         base_path = Path("/app") if in_docker else Path(".")
         
