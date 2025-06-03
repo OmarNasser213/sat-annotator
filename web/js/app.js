@@ -1,9 +1,34 @@
 // Main application controller for SAT Annotator
 
+// Add global error handler to suppress browser extension related errors
+window.addEventListener('error', (event) => {
+    // Filter out Chrome extension message port errors
+    if (event.message && event.message.includes('message port closed')) {
+        event.preventDefault();
+        return true;
+    }
+    // Let other errors proceed normally
+    return false;
+});
+
+// Also handle unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+    // Filter out Chrome extension related promise rejections
+    if (event.reason && event.reason.message && 
+        event.reason.message.includes('message port closed')) {
+        event.preventDefault();
+        return true;
+    }
+    // Let other promise rejections proceed normally
+    return false;
+});
+
 class SATAnnotator {
     constructor() {
         this.images = [];
         this.currentImageId = null;
+        // Track if user has unsaved work for page protection
+        this.hasUnsavedWork = false;
     }    async initialize() {
         console.log('=== SAT Annotator Initialization Started ===');
         
@@ -11,6 +36,16 @@ class SATAnnotator {
             // Show loading immediately
             Utils.showLoading('Initializing...');
             console.log('Step 1: Loading overlay shown');
+            
+            // Clear any existing session to ensure fresh start
+            console.log('Step 1.5: Clearing any existing session...');
+            await api.clearSession();
+            console.log('Step 1.5: Session cleared, starting fresh');
+              // Reset application state
+            this.images = [];
+            this.currentImageId = null;
+            this.hasUnsavedWork = false;
+            console.log('Step 1.6: Application state reset');
             
             // Initialize managers with error handling
             console.log('Step 2: Initializing Canvas Manager...');
@@ -30,6 +65,11 @@ class SATAnnotator {
                 console.error('Step 3: Annotation Manager failed:', error);
                 throw new Error('Annotation Manager initialization failed: ' + error.message);
             }
+
+            // Reset UI to initial state
+            console.log('Step 3.5: Resetting UI to initial state...');
+            this.resetUI();
+            console.log('Step 3.5: UI reset complete');
             
             // Setup event listeners
             console.log('Step 4: Setting up event listeners...');
@@ -87,9 +127,79 @@ class SATAnnotator {
             Utils.hideLoading();
             Utils.showToast('Failed to initialize application: ' + error.message, 'error');
         }
-    }
+    }    resetUI() {
+        // Reset images list to show no images
+        const imagesList = document.getElementById('imagesList');
+        if (imagesList) {
+            imagesList.innerHTML = `
+                <div class="no-images">
+                    <i class="fas fa-image"></i>
+                    <p>No images uploaded yet</p>
+                </div>
+            `;
+        }
 
-    setupEventListeners() {
+        // Reset annotations list
+        const annotationsList = document.getElementById('annotationsList');
+        if (annotationsList) {
+            annotationsList.innerHTML = `
+                <div class="no-annotations">
+                    <i class="fas fa-shapes"></i>
+                    <p>No annotations yet</p>
+                </div>
+            `;
+        }
+
+        // Don't touch canvas elements - let canvas manager handle its own state
+
+        // Disable buttons that require images
+        const exportBtn = document.getElementById('exportBtn');
+        const clearBtn = document.getElementById('clearAnnotations');
+        if (exportBtn) exportBtn.disabled = true;
+        if (clearBtn) clearBtn.disabled = true;
+    }    setupEventListeners() {        // Page reload/close protection - warn if there are uploaded images or annotations
+        const beforeUnloadHandler = (e) => {
+            console.log('beforeunload triggered');
+            console.log('this.images:', this.images);
+            console.log('this.hasUnsavedWork:', this.hasUnsavedWork);
+            console.log('window.annotationManager:', window.annotationManager);
+            
+            const hasImages = this.images && this.images.length > 0;
+            const hasAnnotations = window.annotationManager && window.annotationManager.annotations && window.annotationManager.annotations.length > 0;
+            
+            // Also check DOM for uploaded images as backup
+            const imageListItems = document.querySelectorAll('#imageList .image-item');
+            const hasImagesInDOM = imageListItems.length > 0;
+            
+            console.log('hasImages:', hasImages);
+            console.log('hasAnnotations:', hasAnnotations);
+            console.log('hasImagesInDOM:', hasImagesInDOM);
+            
+            // Check multiple conditions
+            const shouldWarn = this.hasUnsavedWork || hasImages || hasAnnotations || hasImagesInDOM;
+            
+            if (shouldWarn) {
+                console.log('Preventing page unload - user has unsaved work');
+                const message = 'You have unsaved work (uploaded images or annotations). Are you sure you want to leave?';
+                e.preventDefault();
+                e.returnValue = message;
+                return message;
+            } else {
+                console.log('No unsaved work detected, allowing page unload');
+            }
+        };
+        
+        window.addEventListener('beforeunload', beforeUnloadHandler);
+        console.log('beforeunload event listener registered successfully');
+
+        // Clear all images button
+        const clearAllBtn = document.getElementById('clearAllImages');
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', async () => {
+                await this.clearAllImages();
+            });
+        }
+
         // Mobile menu
         document.getElementById('mobileMenuBtn').addEventListener('click', () => this.toggleMobileMenu());
         document.getElementById('sidebarOverlay').addEventListener('click', () => this.closeMobileMenu());
@@ -137,20 +247,11 @@ class SATAnnotator {
         
         // AI Segmentation Settings
         this.setupAISettings();
-        
-        // Window events
-        window.addEventListener('beforeunload', (e) => {
-            if (window.annotationManager.annotations.length > 0) {
-                const message = 'You have unsaved annotations. Are you sure you want to leave?';
-                e.returnValue = message;
-                return message;
-            }        });
     }
 
-    setupAISettings() {
-        // Initialize AI segmentation settings
+    setupAISettings() {        // Initialize AI segmentation settings
         this.aiSettings = {
-            maxPoints: 20,
+            maxPoints: 10,
             quality: 'medium',
             toleranceMap: {
                 'high': { min: 0.001, max: 0.01 },
@@ -294,42 +395,91 @@ class SATAnnotator {
                 window.canvasManager.fitToScreen();
                 break;
         }
-    }
-
-    async handleFileSelect(files) {
+    }    async handleFileSelect(files) {
         if (!files || files.length === 0) return;
         
-        const file = files[0];
+        // Handle multiple files
+        const validFiles = [];
+        const invalidFiles = [];
         
-        if (!Utils.isValidImageFile(file)) {
-            Utils.showToast('Please select a valid image file (JPG, PNG, TIFF, GeoTIFF)', 'error');
-            return;
+        // Validate all files first
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            
+            if (!Utils.isValidImageFile(file)) {
+                invalidFiles.push(file.name);
+                continue;
+            }
+            
+            if (file.size > 100 * 1024 * 1024) { // 100MB limit per file
+                invalidFiles.push(`${file.name} (too large)`);
+                continue;
+            }
+            
+            validFiles.push(file);
         }
         
-        if (file.size > 100 * 1024 * 1024) { // 100MB limit
-            Utils.showToast('File is too large. Please select a file smaller than 100MB.', 'error');
+        // Show errors for invalid files
+        if (invalidFiles.length > 0) {
+            Utils.showToast(`Invalid files: ${invalidFiles.join(', ')}. Please select valid image files (JPG, PNG, TIFF, GeoTIFF) smaller than 100MB.`, 'error');
+        }
+        
+        if (validFiles.length === 0) {
             return;
         }
-          try {
-            console.log('Starting file upload for:', file.name);
-            const imageData = await api.uploadImage(file, (progress) => {
-                // Could show upload progress here
-                console.log(`Upload progress: ${progress.toFixed(1)}%`);
-            });
+          // Upload all valid files sequentially to preserve order
+        const successfulUploads = [];
+        
+        try {
+            // Show loading for multiple uploads
+            Utils.showLoading(`Uploading ${validFiles.length} image${validFiles.length > 1 ? 's' : ''}...`);
             
-            console.log('Upload completed, received imageData:', imageData);
+            // Upload files one by one to preserve selection order
+            for (let i = 0; i < validFiles.length; i++) {
+                const file = validFiles[i];
+                try {
+                    console.log(`Starting file upload ${i + 1}/${validFiles.length} for:`, file.name);
+                    const imageData = await api.uploadImage(file, (progress) => {
+                        console.log(`Upload progress for ${file.name}: ${progress.toFixed(1)}%`);
+                    }, false); // Don't show individual loading for multiple uploads
+                    
+                    console.log(`Upload ${i + 1}/${validFiles.length} completed:`, imageData);
+                    // Add to images list
+                    this.images.push(imageData);
+                    
+                    // Mark as having unsaved work
+                    this.hasUnsavedWork = true;
+                    
+                    successfulUploads.push(imageData);
+                } catch (error) {
+                    console.error(`Upload failed for ${file.name}:`, error);
+                    Utils.showToast(`Upload failed for ${file.name}: ${error.message}`, 'error');
+                }
+            }
+              Utils.hideLoading();
             
-            // Add to images list
-            this.images.push(imageData);
-            this.updateImagesList();
-            
-            // Load the image automatically
-            console.log('Selecting uploaded image with ID:', imageData.image_id);
-            this.selectImage(imageData.image_id);
+            // Reload images from server to get updated list
+            await this.loadImages();
+              // Show success message
+            if (successfulUploads.length > 0) {                Utils.showToast(`Successfully uploaded ${successfulUploads.length} image${successfulUploads.length > 1 ? 's' : ''}`, 'success');
+                
+                // Select the first image from the newly uploaded ones
+                // Since images are now sorted by creation time, the first uploaded image will be first
+                if (this.images.length > 0) {
+                    const uploadedImageIds = successfulUploads.map(img => img.image_id);
+                    const firstUploadedImage = this.images.find(img => uploadedImageIds.includes(img.image_id));
+                    
+                    if (firstUploadedImage) {
+                        console.log('Selecting first uploaded image with ID:', firstUploadedImage.image_id);
+                        await this.selectImage(firstUploadedImage.image_id);
+                    }
+                }
+            }
             
         } catch (error) {
-            console.error('Upload failed:', error);
-            Utils.showToast('Upload failed: ' + error.message, 'error');
+            Utils.hideLoading();
+            console.error('Multiple upload process failed:', error);
+            Utils.showToast('Upload process failed: ' + error.message, 'error');
         }
     }    async loadImages() {
         try {
@@ -337,7 +487,11 @@ class SATAnnotator {
             // Don't show loading here since main initialization already shows it
             
             this.images = await api.getImages();
-            console.log('loadImages: Images loaded:', this.images);
+            
+            // Sort images by creation time (oldest first) to maintain upload order
+            this.images.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            
+            console.log('loadImages: Images loaded and sorted:', this.images);
             
             this.updateImagesList();
             console.log('loadImages: Images list updated');
@@ -345,16 +499,15 @@ class SATAnnotator {
             if (this.images.length > 0) {
                 console.log(`loadImages: Found ${this.images.length} images`);
             } else {
-                console.log('loadImages: No images found (normal for first run)');
+                console.log('loadImages: No images found (fresh session)');
             }
         } catch (error) {
             console.error('loadImages: Error occurred:', error);
             throw error; // Re-throw so main initialization can handle it
         }
-    }
-
-    updateImagesList() {
+    }    updateImagesList() {
         const container = document.getElementById('imagesList');
+        const clearAllBtn = document.getElementById('clearAllImages');
         
         if (this.images.length === 0) {
             container.innerHTML = `
@@ -363,33 +516,58 @@ class SATAnnotator {
                     <p>No images uploaded yet</p>
                 </div>
             `;
+            
+            // Disable clear all button when no images
+            if (clearAllBtn) {
+                clearAllBtn.disabled = true;
+            }
             return;
-        }
-        
-        container.innerHTML = this.images.map(image => `
+        }          container.innerHTML = this.images.map((image, index) => `
             <div class="image-item ${this.currentImageId === image.image_id ? 'active' : ''}" 
                  data-image-id="${image.image_id}">
-                <img class="image-thumbnail" 
-                     src="${api.getImageUrl(image.file_path)}" 
-                     alt="${image.file_name}"
-                     onerror="this.style.display='none'">
-                <div class="image-info">
-                    <h4>${image.file_name}</h4>
-                    <p>${image.resolution} • ${Utils.formatDate(image.created_at)}</p>
+                <div class="image-number-left">${index + 1}</div>
+                <div class="image-content">
+                    <div class="image-actions">
+                        <button class="delete-image-btn" data-image-id="${image.image_id}" title="Remove Image">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <img class="image-thumbnail" 
+                         src="${api.getImageUrl(image.file_path)}" 
+                         alt="${image.file_name}"
+                         onerror="this.style.display='none'">
+                    <div class="image-info">
+                        <h4>${image.file_name}</h4>
+                        <p>${image.resolution} • ${Utils.formatDate(image.created_at)}</p>
+                    </div>
                 </div>
             </div>
-        `).join('');
-        
-        // Add click handlers
+        `).join('');// Add click handlers for images
         container.querySelectorAll('.image-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', async (e) => {
+                // Don't trigger image selection if clicking on delete button
+                if (e.target.closest('.delete-image-btn')) {
+                    return;
+                }
+                
                 const imageId = item.dataset.imageId;
-                this.selectImage(imageId);
+                await this.selectImage(imageId);
             });
         });
-    }
-
-    selectImage(imageId) {
+          // Add delete button handlers
+        container.querySelectorAll('.delete-image-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Prevent image selection
+                const imageId = btn.dataset.imageId;
+                await this.removeImage(imageId);
+            });
+        });
+        
+        // Enable clear all button when there are images
+        if (clearAllBtn) {
+            clearAllBtn.disabled = false;
+        }
+    }async selectImage(imageId) {
         // Find image data
         const imageData = this.images.find(img => img.image_id == imageId);
         if (!imageData) {
@@ -405,8 +583,8 @@ class SATAnnotator {
         // Load image in canvas
         window.canvasManager.loadImage(imageData);
         
-        // Load annotations for this image
-        window.annotationManager.setCurrentImage(imageId);
+        // Load annotations for this image (now async)
+        await window.annotationManager.setCurrentImage(imageId);
         
         Utils.showToast(`Loaded: ${imageData.file_name}`, 'success');
     }
@@ -489,6 +667,105 @@ class SATAnnotator {
             document.getElementById('clearAnnotations').disabled = true;
             
             Utils.showToast(`Cleared ${totalItems} items`, 'success');
+        }
+    }    async removeImage(imageId) {
+        const image = this.images.find(img => img.image_id === imageId);
+        if (!image) {
+            Utils.showToast('Image not found', 'error');
+            return;
+        }
+        
+        // Confirm before deletion
+        if (!confirm(`Are you sure you want to delete the image "${image.file_name}"? This will also remove any annotations on this image.`)) {
+            return;
+        }
+        
+        try {
+            Utils.showLoading('Deleting image...');
+            
+            // Delete from backend
+            const response = await api.deleteImage(imageId);
+            
+            // If successful, remove from local images array
+            this.images = this.images.filter(img => img.image_id !== imageId);
+            
+            // If this was the current image, reset it
+            if (this.currentImageId === imageId) {
+                this.currentImageId = null;
+                
+                // Clear canvas
+                if (window.canvasManager) {
+                    window.canvasManager.clearImage();
+                }
+                
+                // Clear annotations
+                if (window.annotationManager) {
+                    window.annotationManager.annotations = [];
+                    window.annotationManager.updateUI();
+                }
+                
+                // Load another image if available
+                if (this.images.length > 0) {
+                    await this.selectImage(this.images[0].image_id);
+                }
+            }
+            
+            // Update UI
+            this.updateImagesList();
+            
+            Utils.hideLoading();
+            Utils.showToast('Image deleted successfully', 'success');
+            
+        } catch (error) {            Utils.hideLoading();
+            console.error('Failed to delete image:', error);
+            Utils.showToast('Failed to delete image: ' + error.message, 'error');
+        }
+    }
+
+    async clearAllImages() {
+        if (this.images.length === 0) {
+            Utils.showToast('No images to clear', 'info');
+            return;
+        }
+        
+        // Confirm before clearing all
+        const imageCount = this.images.length;
+        if (!confirm(`Are you sure you want to remove all ${imageCount} image${imageCount > 1 ? 's' : ''}? This will also remove all annotations.`)) {
+            return;
+        }
+        
+        try {
+            Utils.showLoading('Clearing all images...');
+            
+            // Clear session data on the backend
+            await api.clearSession();
+            
+            // Clear local data
+            this.images = [];
+            this.currentImageId = null;
+            this.hasUnsavedWork = false;
+            
+            // Clear canvas
+            if (window.canvasManager) {
+                window.canvasManager.clearImage();
+            }
+            
+            // Clear annotations
+            if (window.annotationManager) {
+                window.annotationManager.annotations = [];
+                window.annotationManager.updateUI();
+            }
+            
+            // Reset UI
+            this.resetUI();
+            
+            Utils.hideLoading();
+            Utils.showToast(`Cleared ${imageCount} image${imageCount > 1 ? 's' : ''} and all annotations`, 'success');
+            
+        } catch (error) {
+            Utils.hideLoading();
+            console.error('Failed to clear all images:', error);
+            Utils.showToast('Failed to clear all images: ' + error.message, 'error');
         }
     }
 }
