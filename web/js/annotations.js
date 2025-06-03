@@ -51,15 +51,26 @@ class AnnotationManager {
         
         // Hide context menu when clicking elsewhere
         document.addEventListener('click', () => this.hideContextMenu());
-    }
-
-    setCurrentImage(imageId) {
+    }    async setCurrentImage(imageId) {
+        // Save any existing annotations for the current image before switching
+        if (this.currentImageId && this.annotations.length > 0) {
+            console.log(`Saving ${this.annotations.length} annotations for image ${this.currentImageId} before switching`);
+            try {
+                await Promise.all(
+                    this.annotations.map(ann => this.saveAnnotation(ann.id))
+                );
+                console.log('All annotations saved successfully');
+            } catch (error) {
+                console.error('Failed to save some annotations before switching images:', error);
+            }
+        }
+        
         this.currentImageId = imageId;
         this.annotations = [];
         this.selectedAnnotation = null;
         this.updateUI();
           // Load existing annotations for this image
-        this.loadAnnotations(imageId);
+        await this.loadAnnotations(imageId);
     }
 
     selectLabel(label) {
@@ -195,17 +206,17 @@ class AnnotationManager {
                 };
                 
                 console.log(`  Final annotation ${index}:`, result);
-                return result;
-            });
+                return result;            });
+            
+            // Sort annotations by creation time to maintain consistent numbering
+            this.annotations.sort((a, b) => new Date(a.created) - new Date(b.created));
             
             console.log(`Loaded ${this.annotations.length} annotations:`, this.annotations);
             this.updateUI();
         } catch (error) {
             console.error('Failed to load annotations:', error);
         }
-    }
-
-    addAnnotation(annotation = {}) {
+    }    addAnnotation(annotation = {}) {
         // Ensure annotation has an ID
         if (!annotation.id) {
             annotation.id = Utils.generateId();
@@ -220,6 +231,14 @@ class AnnotationManager {
         
         this.annotations.push(annotation);
         this.updateUI();
+        
+        // Auto-save the annotation to backend
+        if (this.currentImageId) {
+            this.saveAnnotation(annotation.id).catch(error => {
+                console.error('Failed to auto-save annotation:', error);
+                Utils.showToast('Warning: Annotation not saved to backend', 'warning');
+            });
+        }
         
         // Enable export button
         document.getElementById('exportBtn').disabled = false;
@@ -314,11 +333,13 @@ class AnnotationManager {
                 </div>
             `;
             return;
-        }        container.innerHTML = this.annotations.map(annotation => {
+        }        container.innerHTML = this.annotations.map((annotation, index) => {
             const isEditing = window.canvasManager && window.canvasManager.isEditingPolygon && window.canvasManager.editingAnnotationId === annotation.id;
             return `
                 <div class="annotation-item ${this.selectedAnnotation === annotation.id ? 'selected' : ''} ${isEditing ? 'editing' : ''}" 
-                     data-annotation-id="${annotation.id}">                    <div class="annotation-info">
+                     data-annotation-id="${annotation.id}">
+                    <div class="annotation-number">${index + 1}</div>
+                    <div class="annotation-info">
                         <h4>${annotation.label}</h4>
                         <p>${annotation.source === 'ai' ? 'AI Generated' : 'Manual'} • ${annotation.polygon.length} points${annotation.simplified ? ' (simplified)' : ''}</p>
                     </div>
@@ -452,23 +473,37 @@ class AnnotationManager {
             });        } catch (error) {
             console.error('Failed to save annotation:', error);
         }
-    }
-
-    deleteAnnotation(id) {
+    }    async deleteAnnotation(id) {
+        console.log('Attempting to delete annotation with ID:', id);
         if (confirm('Are you sure you want to delete this annotation?')) {
+            try {
+                // Delete from backend first
+                console.log('Calling API to delete annotation:', id);
+                await api.deleteAnnotation(id);
+                console.log('Backend deletion successful for:', id);
+                
+                // Only remove from frontend if backend deletion succeeds
+                this.removeAnnotation(id);
+                window.canvasManager.redraw();
+                console.log('Frontend cleanup completed for:', id);
+            } catch (error) {
+                // If backend deletion fails, show error but don't remove from frontend
+                console.error('Failed to delete annotation from backend:', error);
+                Utils.showToast(`Failed to delete annotation: ${error.message}`, 'error');
+            }
+        }
+    }async deleteAnnotationFromBackend(id) {
+        try {
+            // Delete from backend first
+            await api.deleteAnnotation(id);
+            
+            // Only remove from frontend if backend deletion succeeds
             this.removeAnnotation(id);
             window.canvasManager.redraw();
-            
-            // Delete from backend if available
-            this.deleteAnnotationFromBackend(id);
-        }
-    }
-
-    async deleteAnnotationFromBackend(id) {
-        try {
-            await api.deleteAnnotation(id);
         } catch (error) {
+            // If backend deletion fails, show error but don't remove from frontend
             console.error('Failed to delete annotation from backend:', error);
+            Utils.showToast(`Failed to delete annotation: ${error.message}`, 'error');
         }
     }
 
@@ -511,11 +546,31 @@ class AnnotationManager {
             
             Utils.showToast('All annotations cleared', 'success');
         }
+    }    async exportAnnotations() {
+        // Check if there are multiple images
+        const hasMultipleImages = window.satAnnotator && window.satAnnotator.images && window.satAnnotator.images.length > 1;
+        
+        if (hasMultipleImages) {
+            // Show dialog to choose export scope
+            const exportAll = confirm(
+                `You have ${window.satAnnotator.images.length} images loaded.\n\n` +
+                'Click "OK" to export annotations from ALL images\n' +
+                'Click "Cancel" to export only the current image\'s annotations'
+            );
+            
+            if (exportAll) {
+                await this.exportAllImages();
+                return;
+            }
+        }
+        
+        // Export current image only
+        await this.exportCurrentImage();
     }
 
-    exportAnnotations() {
+    async exportCurrentImage() {
         if (this.annotations.length === 0) {
-            Utils.showToast('No annotations to export', 'warning');
+            Utils.showToast('No annotations to export for current image', 'warning');
             return;
         }
         
@@ -526,8 +581,8 @@ class AnnotationManager {
                 resolution: window.canvasManager.currentImage?.resolution || 'unknown',
                 width: window.canvasManager.imageElement?.naturalWidth || 0,
                 height: window.canvasManager.imageElement?.naturalHeight || 0
-            },
-            annotations: this.annotations.map(ann => ({
+            },            annotations: this.annotations.map((ann, index) => ({
+                number: index + 1,
                 id: ann.id,
                 type: ann.type,
                 label: ann.label,
@@ -540,7 +595,8 @@ class AnnotationManager {
                 format: 'json',
                 exported_at: new Date().toISOString(),
                 tool: 'SAT Annotator',
-                version: '1.0.0'
+                version: '1.0.0',
+                scope: 'single_image'
             },
             statistics: {
                 total_annotations: this.annotations.length,
@@ -549,12 +605,141 @@ class AnnotationManager {
                 unique_labels: [...new Set(this.annotations.map(ann => ann.label))].length
             }
         };
+
+        this.downloadJSON(exportData, `annotations_${this.currentImageId}.json`);
+        Utils.showToast(`Exported ${this.annotations.length} annotations for current image`, 'success');
+    }
+
+    async exportAllImages() {
+        if (!window.satAnnotator || !window.satAnnotator.images || window.satAnnotator.images.length === 0) {
+            Utils.showToast('No images available', 'warning');
+            return;
+        }
+
+        Utils.showLoading('Collecting annotations from all images...');
         
-        const filename = `annotations_${this.currentImageId}_${new Date().toISOString().split('T')[0]}.json`;
-        Utils.downloadFile(JSON.stringify(exportData, null, 2), filename, 'application/json');
+        try {
+            // Save current image's annotations first
+            if (this.currentImageId && this.annotations.length > 0) {
+                await Promise.all(
+                    this.annotations.map(ann => this.saveAnnotation(ann.id))
+                );
+            }
+
+            const allAnnotations = [];
+            const imageData = [];
+            let totalAnnotations = 0;
+
+            // Collect annotations from all images
+            for (const image of window.satAnnotator.images) {
+                const annotations = await api.getAnnotations(image.image_id);
+                
+                if (annotations.length > 0) {
+                    // Process annotations for this image
+                    const processedAnnotations = annotations.map((ann, index) => {
+                        let polygon = [];
+                        let label = 'Unlabeled';
+                        let type = 'unknown';
+                        let source = 'unknown';
+                        let created = new Date().toISOString();
+                        let annotationId = ann.annotation_id;
+
+                        if (ann.data && ann.data.features && ann.data.features.length > 0) {
+                            const feature = ann.data.features[0];
+                            
+                            if (feature.properties) {
+                                label = feature.properties.label || feature.properties.class_name || 'Unlabeled';
+                                type = feature.properties.type || 'polygon';
+                                source = feature.properties.source || 'unknown';
+                                created = feature.properties.created || created;
+                            }
+
+                            if (feature.geometry && feature.geometry.coordinates && feature.geometry.coordinates.length > 0) {
+                                polygon = feature.geometry.coordinates[0];
+                            }
+                        }
+
+                        return {
+                            id: annotationId,
+                            image_id: image.image_id,
+                            image_filename: image.file_name,
+                            type,
+                            label,
+                            polygon,
+                            source,
+                            created,
+                            points_count: polygon.length
+                        };
+                    });
+
+                    allAnnotations.push(...processedAnnotations);
+                    totalAnnotations += processedAnnotations.length;
+
+                    imageData.push({
+                        id: image.image_id,
+                        filename: image.file_name,
+                        annotations_count: processedAnnotations.length
+                    });
+                }
+            }
+
+            Utils.hideLoading();
+
+            if (totalAnnotations === 0) {
+                Utils.showToast('No annotations found across all images', 'warning');
+                return;
+            }            const exportData = {
+                images: imageData,
+                annotations: allAnnotations.map((ann, index) => ({
+                    number: index + 1,
+                    ...ann
+                })),
+                export_info: {
+                    format: 'json',
+                    exported_at: new Date().toISOString(),
+                    tool: 'SAT Annotator',
+                    version: '1.0.0',
+                    scope: 'all_images',
+                    total_images: window.satAnnotator.images.length,
+                    images_with_annotations: imageData.length
+                },
+                statistics: {
+                    total_images: window.satAnnotator.images.length,
+                    images_with_annotations: imageData.length,
+                    total_annotations: totalAnnotations,
+                    ai_generated: allAnnotations.filter(ann => ann.source === 'ai').length,
+                    manual: allAnnotations.filter(ann => ann.source === 'manual').length,
+                    unique_labels: [...new Set(allAnnotations.map(ann => ann.label))].length,
+                    annotations_per_image: imageData.map(img => ({
+                        image: img.filename,
+                        count: img.annotations_count
+                    }))
+                }
+            };
+
+            this.downloadJSON(exportData, `annotations_all_images_${new Date().toISOString().split('T')[0]}.json`);
+            Utils.showToast(`Exported ${totalAnnotations} annotations from ${imageData.length} images`, 'success');
+
+        } catch (error) {
+            Utils.hideLoading();
+            console.error('Failed to export all annotations:', error);
+            Utils.showToast('Failed to export all annotations: ' + error.message, 'error');
+        }
+    }    downloadJSON(data, filename) {
+        const dataStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
         
-        Utils.showToast(`Exported ${this.annotations.length} annotations`, 'success');
-    }    drawAnnotations(ctx, scale, offsetX, offsetY) {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(url);
+    }
+    
+    drawAnnotations(ctx, scale, offsetX, offsetY) {
         console.log(`drawAnnotations called with ${this.annotations.length} annotations, scale: ${scale.toFixed(3)}, offset: ${offsetX.toFixed(1)},${offsetY.toFixed(1)}`);
         
         // Note: Canvas context is already DPR-scaled by canvas manager
@@ -680,30 +865,56 @@ class AnnotationManager {
                 ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
                 ctx.fill();
                 ctx.restore();
-            });
-              // Draw label
+            });              // Draw annotation number and label
             if (canvasPolygon.length > 0) {
                 const centerX = canvasPolygon.reduce((sum, p) => sum + p.x, 0) / canvasPolygon.length;
                 const centerY = canvasPolygon.reduce((sum, p) => sum + p.y, 0) / canvasPolygon.length;
                 
+                // Position number above the polygon using bounds
+                const annotationNumber = index + 1;
+                const numberY = bounds.minY - 15; // Position above the polygon
+                
+                // Draw simple number text (no circle background)
+                ctx.save();
+                ctx.fillStyle = strokeColor;
+                ctx.font = 'bold 12px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Add text background for better visibility
+                const textMetrics = ctx.measureText(annotationNumber.toString());
+                const padding = 3;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.fillRect(
+                    centerX - textMetrics.width / 2 - padding,
+                    numberY - 8,
+                    textMetrics.width + padding * 2,
+                    16
+                );
+                
+                ctx.fillStyle = strokeColor;
+                ctx.fillText(annotationNumber.toString(), centerX, numberY);
+                ctx.restore();
+                
+                // Draw label below the number
                 ctx.save();
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.font = '12px Inter, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                const textMetrics = ctx.measureText(annotation.label);
-                const padding = 4;
+                const labelMetrics = ctx.measureText(annotation.label);
+                const labelPadding = 4;
                 
                 ctx.fillRect(
-                    centerX - textMetrics.width / 2 - padding,
-                    centerY - 8,
-                    textMetrics.width + padding * 2,
+                    centerX - labelMetrics.width / 2 - labelPadding,
+                    centerY + 5,
+                    labelMetrics.width + labelPadding * 2,
                     16
                 );
                 
                 ctx.fillStyle = 'white';
-                ctx.fillText(annotation.label, centerX, centerY);
+                ctx.fillText(annotation.label, centerX, centerY + 13);
                 ctx.restore();
             }
                   // Draw editing border around the polygon to indicate edit mode
