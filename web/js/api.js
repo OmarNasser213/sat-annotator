@@ -1,8 +1,10 @@
 // API communication layer for SAT Annotator
 
-class API {
+class API {    
     constructor() {
-        this.baseURL = window.location.origin;
+        // Check if we're in development mode and redirect to backend
+        const isDevelopment = window.location.port === '8080' || window.location.port === '3000';
+        this.baseURL = isDevelopment ? 'http://localhost:8000' : window.location.origin;
         this.sessionId = null;
     }
 
@@ -42,6 +44,27 @@ class API {
             console.error('API request failed:', error);
             throw error;
         }
+    }    
+
+    // Clear current session and start fresh
+    async clearSession() {
+        try {
+            // Call backend to clear session data
+            await this.delete('/api/session/');
+            console.log('Backend session cleared');
+            
+            // Also clear the frontend session cookie
+            document.cookie = `sat_annotator_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            console.log('Frontend session cookie cleared');
+            
+            // Reset session ID
+            this.sessionId = null;
+        } catch (error) {
+            console.warn('Could not clear session:', error);
+            // Even if backend call fails, clear the cookie
+            document.cookie = `sat_annotator_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+            this.sessionId = null;
+        }
     }
 
     // GET request
@@ -50,11 +73,16 @@ class API {
     }
 
     // POST request
-    async post(endpoint, data) {
-        return this.request(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(data),
+    async post(endpoint, data = {}) {
+        return this.request(endpoint, { 
+            method: 'POST', 
+            body: JSON.stringify(data) 
         });
+    }
+
+    // DELETE request
+    async delete(endpoint) {
+        return this.request(endpoint, { method: 'DELETE' });
     }
 
     // Upload file
@@ -108,24 +136,32 @@ class API {
             console.error('Health check failed:', error);
             return false;
         }
-    }
+    }    
 
     // Upload image
-    async uploadImage(file, onProgress = null) {
+    async uploadImage(file, onProgress = null, showLoading = true) {
         try {
-            Utils.showLoading('Uploading image...');
+            if (showLoading) {
+                Utils.showLoading('Uploading image...');
+            }
             const response = await this.uploadFile('/api/upload-image/', file, onProgress);
-            Utils.hideLoading();
+            if (showLoading) {
+                Utils.hideLoading();
+            }
             
             if (response.success) {
-                Utils.showToast('Image uploaded successfully!', 'success');
+                if (showLoading) {
+                    Utils.showToast('Image uploaded successfully!', 'success');
+                }
                 return response.image;
             } else {
                 throw new Error(response.message || 'Upload failed');
             }
         } catch (error) {
-            Utils.hideLoading();
-            Utils.showToast(`Upload failed: ${error.message}`, 'error');
+            if (showLoading) {
+                Utils.hideLoading();
+                Utils.showToast(`Upload failed: ${error.message}`, 'error');
+            }
             throw error;
         }
     }
@@ -150,6 +186,24 @@ class API {
             return await this.get(`/api/images/${imageId}`);
         } catch (error) {
             console.error('Failed to fetch image:', error);
+            throw error;
+        }
+    }    // Delete an image from the server
+    async deleteImage(imageId) {
+        try {
+            console.log(`Deleting image with ID: ${imageId}`);
+            const response = await this.delete(`/api/images/${imageId}`);
+            
+            if (!response || !response.success) {
+                const errorMsg = response?.message || 'Unknown error';
+                console.error(`Image deletion failed: ${errorMsg}`);
+                throw new Error(errorMsg);
+            }
+            
+            console.log('Image deletion successful:', response);
+            return response;
+        } catch (error) {
+            console.error('Failed to delete image:', error);
             throw error;
         }
     }
@@ -261,7 +315,9 @@ class API {
             console.error('Failed to fetch annotations:', error);
             return [];
         }
-    }    // Check server status
+    }    
+
+    // Check server status
     async checkStatus() {
         try {
             const response = await this.get('/');
