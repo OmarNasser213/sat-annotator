@@ -56,8 +56,7 @@ class SessionStore:
             file_name=file_name,
             file_path=file_path,
             resolution=resolution,
-            source=source or "user_upload"
-        )
+            source=source or "user_upload"        )
         
         self.sessions[session_id]["images"][image_id] = image
         return image
@@ -75,16 +74,19 @@ class SessionStore:
         """Get specific image by ID"""
         if session_id not in self.sessions:
             return None
-        
         return self.sessions[session_id]["images"].get(image_id)
-    
+        
     def add_annotation(self, session_id: str, image_id: str, file_path: str,
-                      auto_generated: bool = False, model_id: Optional[str] = None) -> Optional[SessionAnnotation]:
+                      auto_generated: bool = False, model_id: Optional[str] = None, 
+                      annotation_id: Optional[str] = None) -> Optional[SessionAnnotation]:
         """Add annotation to session and return the created annotation object"""
         if session_id not in self.sessions or image_id not in self.sessions[session_id]["images"]:
             return None
             
-        annotation_id = str(uuid.uuid4())
+        # Use provided annotation_id or generate a new one
+        if not annotation_id:
+            annotation_id = str(uuid.uuid4())
+            
         annotation = SessionAnnotation(
             annotation_id=annotation_id,
             image_id=image_id,
@@ -115,6 +117,34 @@ class SessionStore:
             return None
             
         return self.sessions[session_id]["annotations"].get(annotation_id)
+    
+    def remove_annotation(self, session_id: str, annotation_id: str) -> bool:
+        """Remove annotation from session and return True if successful"""
+        if session_id not in self.sessions:
+            return False
+        
+        if annotation_id in self.sessions[session_id]["annotations"]:
+            del self.sessions[session_id]["annotations"][annotation_id]
+            return True
+        return False
+    
+    def remove_image(self, session_id: str, image_id: str) -> bool:
+        """Remove image from session and return True if successful"""
+        if session_id not in self.sessions:
+            return False
+        
+        if image_id in self.sessions[session_id]["images"]:
+            # Remove the image
+            del self.sessions[session_id]["images"][image_id]
+            
+            # Remove any annotations associated with this image
+            self.sessions[session_id]["annotations"] = {
+                k: v for k, v in self.sessions[session_id]["annotations"].items()
+                if v.image_id != image_id
+            }
+            
+            return True
+        return False
     
     def delete_session(self, session_id: str) -> bool:
         """Delete a session and return True if successful"""
