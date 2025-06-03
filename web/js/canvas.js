@@ -30,6 +30,14 @@ class CanvasManager {
         this.currentTool = 'select';
         this.currentPolygon = [];
         this.tempPolygon = [];
+          // Polygon editing state
+        this.isEditingPolygon = false;
+        this.editingAnnotationId = null;
+        this.editModeActive = false; // New: separate edit mode toggle state
+        this.draggingVertex = null;
+        this.hoveredVertex = null;
+        this.hoveredEdge = null;        this.vertexSize = 8; // Size of vertex handles (increased for easier grabbing)
+        this.edgeClickThreshold = 10; // Distance threshold for edge clicking (increased)
         
         // Redraw control
         this.redrawPending = false;
@@ -66,7 +74,322 @@ class CanvasManager {
         }
         
         console.log('CanvasManager: Constructor complete');
-    }    setupCanvas() {
+    }    // Polygon editing methods
+    startPolygonEditing(annotationId) {
+        // Only enter editing mode if edit mode is active
+        if (!this.editModeActive) {
+            this.editModeActive = true;
+            this.updateEditToggleButton();
+        }
+        
+        this.isEditingPolygon = true;
+        this.editingAnnotationId = annotationId;
+        this.canvas.style.cursor = 'pointer';
+        this.redraw();
+        
+        // Update annotation UI to show editing state
+        if (window.annotationManager) {
+            window.annotationManager.updateUI();
+        }
+        
+        // Add a visual status message
+        Utils.showNotification('Edit mode active - Drag points to edit polygon');
+        
+        console.log('Started editing polygon:', annotationId);    }
+
+    stopPolygonEditing() {
+        this.isEditingPolygon = false;
+        this.editingAnnotationId = null;
+        this.draggingVertex = null;
+        this.hoveredVertex = null;
+        this.hoveredEdge = null;
+        
+        // Only turn off edit mode if explicitly requested (not in persistent edit mode)
+        // The editModeActive flag should only be controlled by the toggle button
+        
+        this.canvas.style.cursor = this.getCursor(this.currentTool);
+        this.redraw();
+          // Update annotation UI
+        if (window.annotationManager) {
+            window.annotationManager.updateUI();
+        }
+        
+        // Update toggle button
+        this.updateEditToggleButton();
+        console.log('Stopped editing polygon');
+    }
+
+    getVertexAtPoint(pos, annotation) {
+        if (!annotation.canvasPolygon) return null;
+        
+        // Use a slightly larger hit area than visual size for easier interaction
+        const hitRadius = this.vertexSize + 3;
+        
+        for (let i = 0; i < annotation.canvasPolygon.length; i++) {
+            const vertex = annotation.canvasPolygon[i];
+            const distance = Utils.distance(pos, vertex);
+            if (distance <= hitRadius) {
+                return { annotationId: annotation.id, vertexIndex: i, position: vertex };
+            }
+        }
+        return null;
+    }
+
+    getEdgeAtPoint(pos, annotation) {
+        if (!annotation.canvasPolygon || annotation.canvasPolygon.length < 2) return null;
+        
+        for (let i = 0; i < annotation.canvasPolygon.length; i++) {
+            const start = annotation.canvasPolygon[i];
+            const end = annotation.canvasPolygon[(i + 1) % annotation.canvasPolygon.length];
+            
+            const distance = this.pointToLineDistance(pos, start, end);
+            if (distance <= this.edgeClickThreshold) {
+                return { annotationId: annotation.id, edgeIndex: i, start, end };
+            }
+        }
+        return null;
+    }
+
+    pointToLineDistance(point, lineStart, lineEnd) {
+        const A = point.x - lineStart.x;
+        const B = point.y - lineStart.y;
+        const C = lineEnd.x - lineStart.x;
+        const D = lineEnd.y - lineStart.y;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        if (lenSq === 0) return Utils.distance(point, lineStart);
+
+        const param = dot / lenSq;
+        
+        let xx, yy;
+        if (param < 0) {
+            xx = lineStart.x;
+            yy = lineStart.y;
+        } else if (param > 1) {
+            xx = lineEnd.x;
+            yy = lineEnd.y;
+        } else {
+            xx = lineStart.x + param * C;
+            yy = lineStart.y + param * D;
+        }        return Utils.distance(point, { x: xx, y: yy });
+    }    startVertexDrag(vertexInfo) {
+        console.log('=== START VERTEX DRAG ===');
+        console.log('Vertex info:', vertexInfo);
+        
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === vertexInfo.annotationId);
+        if (annotation) {
+            console.log('Found annotation for dragging');
+            // Mark as dragging to prevent canvas polygon recalculation
+            annotation.isDragging = true;
+        } else {
+            console.log('ERROR: No annotation found for vertex drag!');
+            return;
+        }
+          this.draggingVertex = vertexInfo;
+        this.canvas.style.cursor = 'grabbing';
+        
+        // Prepare coordinate conversion cache for smooth dragging
+        this.dragConversionCache = {
+            imageWidth: this.imageElement.naturalWidth,
+            imageHeight: this.imageElement.naturalHeight,
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            scale: this.scale,
+            offsetX: this.offsetX,
+            offsetY: this.offsetY
+        };
+        
+        console.log('Started dragging vertex:', vertexInfo.vertexIndex);
+        console.log('draggingVertex set to:', this.draggingVertex);}    updateVertexPosition(pos) {
+        if (!this.draggingVertex) return;
+        
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === this.draggingVertex.annotationId);
+        if (!annotation) return;
+        
+        // Update canvas polygon immediately for visual feedback
+        annotation.canvasPolygon[this.draggingVertex.vertexIndex] = { x: pos.x, y: pos.y };
+        
+        // Cache coordinate conversion parameters to avoid recalculation
+        if (!this.dragConversionCache) {
+            this.dragConversionCache = {
+                imageWidth: this.imageElement.naturalWidth,
+                imageHeight: this.imageElement.naturalHeight,
+                canvasWidth: this.canvas.width,
+                canvasHeight: this.canvas.height,
+                scale: this.scale,
+                offsetX: this.offsetX,
+                offsetY: this.offsetY
+            };
+        }
+        
+        // Convert back to image coordinates using cached values
+        const imageCoords = Utils.canvasToImageCoords(
+            pos.x, pos.y,
+            this.dragConversionCache.imageWidth,
+            this.dragConversionCache.imageHeight,
+            this.dragConversionCache.canvasWidth,
+            this.dragConversionCache.canvasHeight,
+            this.dragConversionCache.scale,
+            this.dragConversionCache.offsetX,
+            this.dragConversionCache.offsetY
+        );
+        
+        // Update image polygon
+        annotation.polygon[this.draggingVertex.vertexIndex] = [imageCoords.x, imageCoords.y];
+        
+        // Mark that we're in the middle of dragging to prevent canvas polygon recalculation
+        annotation.isDragging = true;
+        
+        // Use requestAnimationFrame for smooth dragging
+        if (!this.dragRedrawScheduled) {
+            this.dragRedrawScheduled = true;
+            requestAnimationFrame(() => {
+                this.redraw();
+                this.dragRedrawScheduled = false;
+            });
+        }
+    }    finishVertexDrag() {
+        if (this.draggingVertex) {
+            console.log('Finished dragging vertex:', this.draggingVertex.vertexIndex);
+            
+            // Clear drag conversion cache
+            this.dragConversionCache = null;
+            
+            // Save changes to backend if needed
+            const annotation = window.annotationManager.annotations.find(ann => ann.id === this.draggingVertex.annotationId);
+            if (annotation) {
+                // Keep the canvas polygon coordinates we've been dragging
+                // Don't clear isDragging yet to prevent recalculation
+                
+                // Save the annotation with updated coordinates
+                window.annotationManager.saveAnnotation(this.draggingVertex.annotationId);
+                
+                // Small delay before allowing recalculation to ensure smooth transition
+                setTimeout(() => {
+                    if (annotation) {
+                        annotation.isDragging = false;
+                        // Force recalculation flags
+                        annotation.lastScale = null;
+                        annotation.lastOffsetX = null;
+                        annotation.lastOffsetY = null;
+                        // Refresh editing state to ensure handles stay visible
+                        this.refreshEditingState();
+                    }
+                }, 50);
+            }
+            
+            // Clear dragging vertex but keep editing state
+            this.draggingVertex = null;
+            
+            // Update cursor for editing mode
+            this.canvas.style.cursor = 'pointer';
+            
+            // Immediate redraw to show editing handles
+            this.redraw();
+        }
+    }
+
+    addVertexAtEdge(edgeInfo, pos) {
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === edgeInfo.annotationId);
+        if (!annotation) return;
+        
+        // Convert to image coordinates
+        const imageCoords = Utils.canvasToImageCoords(
+            pos.x, pos.y,
+            this.imageElement.naturalWidth,
+            this.imageElement.naturalHeight,
+            this.canvas.width,
+            this.canvas.height,
+            this.scale,
+            this.offsetX,
+            this.offsetY
+        );
+        
+        // Insert new vertex after the edge start
+        const insertIndex = edgeInfo.edgeIndex + 1;
+        annotation.polygon.splice(insertIndex, 0, [imageCoords.x, imageCoords.y]);
+        annotation.canvasPolygon.splice(insertIndex, 0, { x: pos.x, y: pos.y });
+        
+        console.log('Added vertex at edge', edgeInfo.edgeIndex, 'new vertex index:', insertIndex);
+        
+        // Save changes
+        window.annotationManager.saveAnnotation(annotation.id);
+        window.annotationManager.updateUI();
+        this.redraw();
+    }
+
+    removeVertex(vertexInfo) {
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === vertexInfo.annotationId);
+        if (!annotation || annotation.polygon.length <= 3) return; // Keep at least 3 vertices
+        
+        // Remove vertex from both polygons
+        annotation.polygon.splice(vertexInfo.vertexIndex, 1);
+        annotation.canvasPolygon.splice(vertexInfo.vertexIndex, 1);
+        
+        console.log('Removed vertex', vertexInfo.vertexIndex);
+        
+        // Save changes
+        window.annotationManager.saveAnnotation(annotation.id);
+        window.annotationManager.updateUI();
+        this.redraw();    }    updateEditingHover(pos) {
+        if (!this.isEditingPolygon) return;
+        
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === this.editingAnnotationId);
+        if (!annotation) return;
+        
+        // Check for vertex hover
+        const vertexInfo = this.getVertexAtPoint(pos, annotation);
+        if (vertexInfo) {
+            if (!this.hoveredVertex || this.hoveredVertex.vertexIndex !== vertexInfo.vertexIndex) {
+                this.hoveredVertex = vertexInfo;
+                this.hoveredEdge = null;
+                this.canvas.style.cursor = 'grab';
+                this.scheduleHoverRedraw();
+            }
+        } else {
+            // Check for edge hover
+            const edgeInfo = this.getEdgeAtPoint(pos, annotation);
+            if (edgeInfo) {
+                if (!this.hoveredEdge || this.hoveredEdge.edgeIndex !== edgeInfo.edgeIndex) {
+                    this.hoveredVertex = null;
+                    this.hoveredEdge = edgeInfo;
+                    this.canvas.style.cursor = 'crosshair';
+                    this.scheduleHoverRedraw();
+                }
+            } else {
+                // No hover
+                if (this.hoveredVertex || this.hoveredEdge) {
+                    this.hoveredVertex = null;
+                    this.hoveredEdge = null;
+                    this.canvas.style.cursor = 'pointer';
+                    this.scheduleHoverRedraw();
+                }
+            }
+        }
+    }    // Throttled redraw for hover effects to prevent lag
+    scheduleHoverRedraw() {
+        if (this.hoverRedrawScheduled) return;
+        
+        this.hoverRedrawScheduled = true;
+        requestAnimationFrame(() => {
+            this.redraw();
+            this.hoverRedrawScheduled = false;
+        });
+    }
+
+    // Throttled redraw for smooth dragging operations
+    throttledRedraw() {
+        if (this.redrawScheduled) return;
+        
+        this.redrawScheduled = true;
+        requestAnimationFrame(() => {
+            this.redraw();
+            this.redrawScheduled = false;
+        });
+    }
+
+    setupCanvas() {
         // Set canvas size to fill container
         this.resizeCanvas();
         
@@ -152,15 +475,21 @@ class CanvasManager {
         document.getElementById('zoomIn').addEventListener('click', () => this.zoomIn());
         document.getElementById('zoomOut').addEventListener('click', () => this.zoomOut());
         document.getElementById('fitToScreen').addEventListener('click', () => this.fitToScreen());
-    }
-
-    setTool(tool) {
+        
+        // Keyboard events for polygon editing
+        document.addEventListener('keydown', this.handleKeyDown.bind(this));
+    }    setTool(tool) {
         this.currentTool = tool;
         this.canvas.style.cursor = this.getCursor(tool);
         
         // Cancel current drawing if switching tools
         if (this.isDrawing && tool !== 'polygon') {
             this.cancelCurrentPolygon();
+        }
+        
+        // Stop polygon editing if switching away from select tool
+        if (this.isEditingPolygon && tool !== 'select') {
+            this.stopPolygonEditing();
         }
     }
 
@@ -178,35 +507,57 @@ class CanvasManager {
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tool === this.currentTool);
         });
-    }
-
-    handleMouseDown(e) {
+    }    handleMouseDown(e) {
         const pos = Utils.getMousePos(this.canvas, e);
         this.lastMousePos = pos;
+        
+        console.log('=== MOUSE DOWN EVENT ===');
+        console.log('Position:', pos);
+        console.log('Current tool:', this.currentTool);
+        console.log('Edit mode active:', this.editModeActive);
+        console.log('Is editing polygon:', this.isEditingPolygon);
+        console.log('Editing annotation ID:', this.editingAnnotationId);
         
         if (e.button === 0) { // Left click
             this.handlePrimaryAction(pos, e);
         } else if (e.button === 2) { // Right click
             this.handleSecondaryAction(pos, e);
-        }
-    }
-
-    handleMouseMove(e) {
+        }    }    handleMouseMove(e) {
         const pos = Utils.getMousePos(this.canvas, e);
         this.updateMouseCoordinates(pos);
         
         if (this.isDragging && this.currentTool === 'pan') {
             this.handlePan(pos);
         } else if (this.isDrawing && this.currentTool === 'polygon') {
-            this.updatePolygonPreview(pos);
+            this.updatePolygonPreview(pos);        } else if (this.draggingVertex) {
+            // Optimized: Remove frequent logging during dragging
+            this.updateVertexPosition(pos);
+        } else if (this.isEditingPolygon && this.currentTool === 'select') {
+            // Optimized hover updates - only check if we've moved significantly
+            if (!this.lastHoverPos || Utils.distance(pos, this.lastHoverPos) > 2) {
+                this.updateEditingHover(pos);
+                this.lastHoverPos = { x: pos.x, y: pos.y };
+            }
         }
         
         this.lastMousePos = pos;
-    }
-
-    handleMouseUp(e) {
+    }handleMouseUp(e) {
+        console.log('=== MOUSE UP EVENT ===');
+        console.log('draggingVertex:', !!this.draggingVertex);
+        
+        if (this.draggingVertex) {
+            console.log('Finishing vertex drag');
+            this.finishVertexDrag();
+        }
+        
         this.isDragging = false;
-        this.canvas.style.cursor = this.getCursor(this.currentTool);
+        
+        // Set cursor based on current state
+        if (this.isEditingPolygon) {
+            this.canvas.style.cursor = 'pointer';
+        } else {
+            this.canvas.style.cursor = this.getCursor(this.currentTool);
+        }
     }
 
     handleWheel(e) {
@@ -261,23 +612,74 @@ class CanvasManager {
                 this.canvas.style.cursor = 'grabbing';
                 break;
         }
-    }
-
-    handleSecondaryAction(pos, e) {
+    }    handleSecondaryAction(pos, e) {
         if (this.currentTool === 'polygon' && this.isDrawing) {
             this.finishPolygon();
+        } else if (this.isEditingPolygon) {
+            // Right-click on vertex to delete it
+            const annotation = window.annotationManager.annotations.find(ann => ann.id === this.editingAnnotationId);
+            if (annotation) {
+                const vertexInfo = this.getVertexAtPoint(pos, annotation);
+                if (vertexInfo && annotation.polygon.length > 3) { // Keep at least 3 vertices
+                    this.removeVertex(vertexInfo);
+                }
+            }
         }
-    }
-
-    handleSelect(pos) {
+    }    handleSelect(pos) {
+        console.log('=== HANDLE SELECT ===');
+        console.log('Position:', pos);
+        console.log('Edit mode active:', this.editModeActive);
+        console.log('Is editing polygon:', this.isEditingPolygon);
+        console.log('Editing annotation ID:', this.editingAnnotationId);
+        
         // Check if clicking on an annotation
         const annotation = window.annotationManager.getAnnotationAtPoint(pos);
+        console.log('Found annotation:', annotation ? annotation.id : 'none');
+        
         if (annotation) {
+            // FIRST: If edit mode is active and we're editing this annotation, check for interactions BEFORE selection
+            if (this.editModeActive && this.isEditingPolygon && this.editingAnnotationId === annotation.id) {
+                console.log('=== CHECKING FOR VERTEX INTERACTION ===');
+                console.log('Annotation canvasPolygon exists:', !!annotation.canvasPolygon);
+                
+                // Check for vertex interaction
+                const vertexInfo = this.getVertexAtPoint(pos, annotation);
+                console.log('Vertex detection result:', vertexInfo);
+                if (vertexInfo) {
+                    console.log('*** STARTING VERTEX DRAG for vertex:', vertexInfo.vertexIndex, '***');
+                    this.startVertexDrag(vertexInfo);
+                    return; // Don't proceed with selection
+                }
+                
+                // Check for edge interaction to add new vertex
+                const edgeInfo = this.getEdgeAtPoint(pos, annotation);
+                console.log('Edge detection result:', edgeInfo);
+                if (edgeInfo) {
+                    console.log('*** ADDING VERTEX AT EDGE ***');
+                    this.addVertexAtEdge(edgeInfo, pos);
+                    return; // Don't proceed with selection
+                }
+                console.log('No vertex or edge interaction detected');
+            }
+            
+            // SECOND: Select the annotation (only if we didn't start dragging/editing)
+            console.log('Selecting annotation:', annotation.id);
             window.annotationManager.selectAnnotation(annotation.id);
-        } else {
+            
+            if (this.editModeActive && (!this.isEditingPolygon || this.editingAnnotationId !== annotation.id)) {
+                // Edit mode is active but we're selecting a different annotation
+                console.log('Starting polygon editing for annotation:', annotation.id);
+                this.startPolygonEditing(annotation.id);
+            }
+            // If edit mode is not active, just select the annotation without editing        } else {
+            // Clear selection
             window.annotationManager.clearSelection();
+            // In persistent edit mode, just stop editing current polygon but keep edit mode active
+            if (this.isEditingPolygon) {
+                this.stopPolygonEditing();
+            }
         }
-    }    async handlePointClick(pos) {
+    }async handlePointClick(pos) {
         if (!this.currentImage) return;
         
         console.log('Click position (canvas coords):', pos);
@@ -307,8 +709,7 @@ class CanvasManager {
           try {
             const result = await api.segment(this.currentImage.image_id, imageCoords.x, imageCoords.y);
             
-            console.log('AI segmentation result:', result);
-              if (result.polygon && result.polygon.length > 0) {
+            console.log('AI segmentation result:', result);              if (result.polygon && result.polygon.length > 0) {
                 console.log('AI polygon received:', result.polygon.length, 'points');
                 console.log('AI polygon sample points (normalized 0-1):', result.polygon.slice(0, 3));
                 
@@ -320,19 +721,46 @@ class CanvasManager {
                 if (!isNormalized) {
                     console.warn('AI polygon coordinates are not normalized (0-1 range):', result.polygon.slice(0, 3));
                 }
+                  // Simplify the polygon to make it easier to edit
+                let simplifiedPolygon = result.polygon;
+                if (result.polygon.length > 10) { // Simplify if more than 10 points
+                    console.log('Simplifying polygon from', result.polygon.length, 'points');
+                    
+                    // Get settings from app
+                    const settings = window.app ? window.app.getSimplificationSettings() : {
+                        maxPoints: 20,
+                        minTolerance: 0.005,
+                        maxTolerance: 0.02
+                    };
+                    
+                    simplifiedPolygon = Utils.adaptiveSimplifyPolygon(
+                        result.polygon, 
+                        settings.maxPoints,
+                        settings.minTolerance,
+                        settings.maxTolerance
+                    );
+                    console.log('Simplified to', simplifiedPolygon.length, 'points');
+                    
+                    // Show feedback to user
+                    if (result.polygon.length !== simplifiedPolygon.length) {
+                        Utils.showToast(`AI polygon simplified from ${result.polygon.length} to ${simplifiedPolygon.length} points for easier editing`, 'info', 3000);
+                    }
+                }
                 
                 // Create annotation - polygon should be in normalized coordinates (0-1)
                 // The drawAnnotations method will convert to canvas coordinates when needed
                 const annotation = {
                     id: Utils.generateId(),
                     type: 'ai_segment',
-                    polygon: result.polygon, // Keep in normalized coordinates (0-1)
+                    polygon: simplifiedPolygon, // Use simplified polygon
+                    originalPolygon: result.polygon, // Keep original for reference
                     label: window.annotationManager.currentLabel,
                     created: new Date().toISOString(),
-                    source: 'ai'
+                    source: 'ai',
+                    simplified: result.polygon.length !== simplifiedPolygon.length
                 };
                 
-                console.log('AI annotation created with normalized polygon:', annotation);
+                console.log('AI annotation created with simplified polygon:', annotation);
                 
                 window.annotationManager.addAnnotation(annotation);
                 this.redraw();
@@ -597,6 +1025,11 @@ class CanvasManager {
             this.drawPolygon(this.tempPolygon, '#3b82f6', 2, true);
         }
         
+        // Draw editing feedback for polygon being edited
+        if (this.isEditingPolygon && this.editingAnnotationId) {
+            this.drawEditingFeedback();
+        }
+        
         // Now restore the context
         this.ctx.restore();
     }
@@ -625,8 +1058,7 @@ class CanvasManager {
         
         this.ctx.stroke();
         this.ctx.restore();
-        
-        // Draw points
+          // Draw points
         points.forEach((point, index) => {
             this.ctx.save();
             this.ctx.fillStyle = color;
@@ -635,14 +1067,136 @@ class CanvasManager {
             this.ctx.fill();
             this.ctx.restore();
         });
+    }    drawEditingFeedback() {
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === this.editingAnnotationId);
+        if (!annotation || !annotation.canvasPolygon) return;
+        
+        // Draw larger, more prominent vertices for editing
+        annotation.canvasPolygon.forEach((vertex, index) => {
+            this.ctx.save();
+            
+            // Highlight hovered or dragged vertex
+            if ((this.hoveredVertex && this.hoveredVertex.vertexIndex === index) || 
+                (this.draggingVertex && this.draggingVertex.vertexIndex === index)) {
+                // Active vertex - larger and red
+                this.ctx.fillStyle = '#ef4444'; // Red for active
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 3;
+                this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                this.ctx.shadowBlur = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(vertex.x, vertex.y, this.vertexSize + 3, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.stroke();
+            } else {
+                // Normal vertex - blue with white border
+                this.ctx.fillStyle = '#3b82f6'; // Blue for normal
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 2;
+                this.ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+                this.ctx.shadowBlur = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(vertex.x, vertex.y, this.vertexSize, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.stroke();
+            }
+            
+            this.ctx.restore();
+        });        // Draw edge hover feedback with better visibility
+        if (this.hoveredEdge) {
+            const start = this.hoveredEdge.start;
+            const end = this.hoveredEdge.end;
+            
+            // Draw highlighted edge
+            this.ctx.save();
+            this.ctx.strokeStyle = '#10b981'; // Green for edge
+            this.ctx.lineWidth = 4;
+            this.ctx.setLineDash([8, 4]);
+            this.ctx.shadowColor = 'rgba(16, 185, 129, 0.3)';
+            this.ctx.shadowBlur = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(start.x, start.y);
+            this.ctx.lineTo(end.x, end.y);
+            this.ctx.stroke();
+            this.ctx.restore();
+            
+            // Draw insertion point indicator at midpoint
+            const midX = (start.x + end.x) / 2;
+            const midY = (start.y + end.y) / 2;
+            
+            this.ctx.save();
+            this.ctx.fillStyle = '#10b981'; // Green
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            this.ctx.shadowBlur = 3;
+            
+            // Plus icon to indicate insertion
+            const size = 12;
+            
+            // Circle background
+            this.ctx.beginPath();
+            this.ctx.arc(midX, midY, size, 0, 2 * Math.PI);
+            this.ctx.fill();
+            this.ctx.stroke();
+            
+            // Plus symbol
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(midX - size/2 + 3, midY);
+            this.ctx.lineTo(midX + size/2 - 3, midY);
+            this.ctx.moveTo(midX, midY - size/2 + 3);
+            this.ctx.lineTo(midX, midY + size/2 - 3);
+            this.ctx.stroke();
+              this.ctx.restore();
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
     }
 
-    clear() {
+    // Efficient method to redraw just the editing handles without full canvas redraw
+
+    handleKeyDown(e) {
+        // Only handle keys when editing polygons
+        if (!this.isEditingPolygon) return;
+          switch (e.key) {
+            case 'Escape':
+                // In persistent edit mode, just clear selection but keep edit mode active
+                if (this.editModeActive) {
+                    window.annotationManager.clearSelection();
+                    if (this.isEditingPolygon) {
+                        this.stopPolygonEditing();
+                    }
+                } else {
+                    // Exit editing mode only if not in persistent mode
+                    this.stopPolygonEditing();
+                    window.annotationManager.clearSelection();
+                }
+                break;
+            case 'Delete':
+            case 'Backspace':
+                // Delete hovered vertex
+                if (this.hoveredVertex) {
+                    const annotation = window.annotationManager.annotations.find(ann => ann.id === this.hoveredVertex.annotationId);
+                    if (annotation && annotation.polygon.length > 3) {
+                        this.removeVertex(this.hoveredVertex);
+                    }
+                }
+                break;
+            case 'Enter':
+                // Finish editing
+                this.stopPolygonEditing();
+                Utils.showToast('Polygon editing complete', 'success');
+                break;
+        }
+    }    clear() {
         this.currentImage = null;
         this.imageElement = null;
         this.canvas.hidden = true;
         this.placeholder.hidden = false;
         this.cancelCurrentPolygon();
+        this.stopPolygonEditing();
     }
     
     // Debug function to test coordinate transformations
@@ -677,9 +1231,73 @@ class CanvasManager {
                 this.offsetX,
                 this.offsetY
             );
-            console.log(`Point ${i} [${point[0]}, ${point[1]}] -> Canvas [${canvas.x.toFixed(1)}, ${canvas.y.toFixed(1)}]`);
-        });
+            console.log(`Point ${i} [${point[0]}, ${point[1]}] -> Canvas [${canvas.x.toFixed(1)}, ${canvas.y.toFixed(1)}]`);        });
         console.log('=== End Debug ===');
+    }
+
+    refreshEditingState() {
+        if (!this.isEditingPolygon || !this.editingAnnotationId) {
+            return;
+        }
+        
+        // Ensure annotation still exists
+        const annotation = window.annotationManager.annotations.find(ann => ann.id === this.editingAnnotationId);
+        if (!annotation) {
+            this.stopPolygonEditing();
+            return;
+        }
+        
+        // Ensure editing cursor is set
+        this.canvas.style.cursor = 'pointer';
+        
+        // Force a redraw to show editing handles
+        this.redraw();
+          console.log('Refreshed editing state for annotation:', this.editingAnnotationId);
+    }    toggleEditMode() {
+        this.editModeActive = !this.editModeActive;
+        
+        if (this.editModeActive) {
+            // Entering edit mode - switch to select tool
+            this.setTool('select');
+            
+            const selectedAnnotation = window.annotationManager.getSelectedAnnotation();
+            if (selectedAnnotation) {
+                this.startPolygonEditing(selectedAnnotation.id);
+                
+                // Show help message
+                Utils.showNotification(
+                    'Edit Mode ON: ' +
+                    'Click and drag vertices to move them • ' +
+                    'Click on edge to add new vertex • ' +
+                    'Right-click vertex to delete',
+                    5000
+                );
+            } else {
+                // No annotation selected, turn off edit mode
+                this.editModeActive = false;
+                this.updateEditToggleButton();
+                Utils.showNotification('Select an annotation first before entering edit mode', 3000);
+                return;
+            }
+        } else {
+            // Exiting edit mode
+            this.stopPolygonEditing();
+            Utils.showNotification('Edit Mode OFF', 2000);
+        }
+        
+        this.updateEditToggleButton();
+        console.log('Edit mode:', this.editModeActive ? 'ON' : 'OFF');
+    }
+    
+    updateEditToggleButton() {
+        const editToggle = document.getElementById('editToggle');
+        if (editToggle) {
+            if (this.editModeActive) {
+                editToggle.classList.add('active');
+            } else {
+                editToggle.classList.remove('active');
+            }
+        }
     }
 }
 

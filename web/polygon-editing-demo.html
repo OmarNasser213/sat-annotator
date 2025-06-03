@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAT Annotator - Satellite Image Annotation Tool</title>
+    <title>SAT Annotator - Polygon Editing Test</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,8 +17,9 @@
             <div class="header-content">
                 <div class="logo">
                     <i class="fas fa-satellite"></i>
-                    <h1>SAT Annotator</h1>
-                </div>                <div class="header-actions">
+                    <h1>SAT Annotator - Polygon Editing Enabled</h1>
+                </div>
+                <div class="header-actions">
                     <button id="mobileMenuBtn" class="btn btn-secondary mobile-only">
                         <i class="fas fa-bars"></i>
                         Menu
@@ -33,7 +34,9 @@
                     </button>
                 </div>
             </div>
-        </header>        <!-- Main Content -->
+        </header>
+
+        <!-- Main Content -->
         <div class="main-content">
             <!-- Sidebar Overlay for Mobile -->
             <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -76,21 +79,33 @@
                         <button class="tool-btn" id="polygonTool" data-tool="polygon">
                             <i class="fas fa-draw-polygon"></i>
                             <span>Draw Polygon</span>
-                        </button>                        <button class="tool-btn" id="panTool" data-tool="pan">
+                        </button>
+                        <button class="tool-btn" id="panTool" data-tool="pan">
                             <i class="fas fa-hand-paper"></i>
                             <span>Pan</span>
-                        </button>                        <button class="tool-btn toggle-btn" id="editToggle" title="Toggle edit mode for selected annotation (Press E)">
-                            <i class="fas fa-edit"></i>
-                            <span>Edit Mode</span>
                         </button>
                     </div>
-                </div><div class="sidebar-section">
+                    
+                    <!-- Polygon Editing Instructions -->
+                    <div class="editing-instructions" style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 0.5rem; font-size: 0.75rem; color: #0369a1;">
+                        <strong>Polygon Editing:</strong><br>
+                        • Click polygon → Start editing<br>
+                        • Drag vertices → Move points<br>
+                        • Click edges → Add new vertex<br>
+                        • Right-click vertex → Delete<br>
+                        • Press ESC → Exit editing<br>
+                        • Press Enter → Finish editing
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
                     <h3><i class="fas fa-tags"></i> Labels</h3>
                     <div class="labels-section">
                         <div class="active-label">
                             <label>Current Label:</label>
                             <span id="currentLabel" class="current-label-display">building</span>
-                        </div>                        <div class="label-list" id="labelList">
+                        </div>
+                        <div class="label-list" id="labelList">
                             <button class="label-btn active default-label" data-label="building">
                                 <i class="fas fa-building"></i>
                                 <span>Building</span>
@@ -130,31 +145,6 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="sidebar-section">
-                    <h3><i class="fas fa-cogs"></i> AI Segment Settings</h3>
-                    <div class="settings-section">
-                        <div class="setting-group">
-                            <label for="maxPoints">Max Points:</label>
-                            <input type="range" id="maxPoints" min="5" max="50" value="20" step="1">
-                            <span id="maxPointsValue">20</span>
-                        </div>
-                        <div class="setting-group">
-                            <label for="simplificationQuality">Quality:</label>
-                            <select id="simplificationQuality">
-                                <option value="high">High (More Points)</option>
-                                <option value="medium" selected>Medium (Balanced)</option>
-                                <option value="low">Low (Fewer Points)</option>
-                            </select>
-                        </div>
-                        <div class="setting-group">
-                            <button id="restoreOriginal" class="btn btn-small" disabled>
-                                <i class="fas fa-undo"></i>
-                                Restore Original
-                            </button>
-                        </div>
-                    </div>
-                </div>
             </aside>
 
             <!-- Main Canvas Area -->
@@ -164,6 +154,7 @@
                         <i class="fas fa-satellite-dish"></i>
                         <h2>Welcome to SAT Annotator</h2>
                         <p>Upload a satellite image to start annotating</p>
+                        <p style="margin-top: 1rem; color: #10b981; font-weight: 600;">✨ Polygon editing now enabled! ✨</p>
                     </div>
                     <canvas id="mainCanvas"></canvas>
                 </div>
@@ -182,42 +173,50 @@
                             <i class="fas fa-expand-arrows-alt"></i>
                         </button>
                     </div>
-                    <div class="coordinates">
+                    <div class="mouse-coords">
                         <span id="mouseCoords">x: 0, y: 0</span>
                     </div>
                 </div>
             </main>
         </div>
-
-        <!-- Loading Overlay -->
-        <div class="loading-overlay" id="loadingOverlay" hidden>
-            <div class="loading-content">
-                <div class="spinner"></div>
-                <p id="loadingText">Processing...</p>
-            </div>
-        </div>
-
-        <!-- Toast Notifications -->
-        <div class="toast-container" id="toastContainer"></div>
-
-        <!-- Context Menu -->
-        <div class="context-menu" id="contextMenu" hidden>
-            <ul>
-                <li id="deleteAnnotation">
-                    <i class="fas fa-trash"></i>
-                    Delete Annotation
-                </li>
-                <li id="editAnnotation">
-                    <i class="fas fa-edit"></i>
-                    Edit Label
-                </li>
-            </ul>        </div>
     </div>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" hidden>
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loadingText">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu" hidden>
+        <button id="editAnnotation">
+            <i class="fas fa-edit"></i>
+            Edit Label
+        </button>
+        <button id="deleteAnnotation">
+            <i class="fas fa-trash"></i>
+            Delete
+        </button>
+    </div>
+
+    <!-- Scripts -->
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
     <script src="js/canvas.js"></script>
     <script src="js/annotations.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Initialize application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('DOM loaded, initializing SAT Annotator...');
+            const app = new SATAnnotator();
+            await app.initialize();
+        });
+    </script>
 </body>
 </html>

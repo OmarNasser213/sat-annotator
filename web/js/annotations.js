@@ -205,7 +205,19 @@ class AnnotationManager {
         }
     }
 
-    addAnnotation(annotation) {
+    addAnnotation(annotation = {}) {
+        // Ensure annotation has an ID
+        if (!annotation.id) {
+            annotation.id = Utils.generateId();
+        }
+        
+        // Set default values if not present
+        annotation.type = annotation.type || 'polygon';
+        annotation.label = annotation.label || 'Unlabeled';
+        annotation.polygon = annotation.polygon || [];
+        annotation.created = annotation.created || new Date().toISOString();
+        annotation.source = annotation.source || 'manual';
+        
         this.annotations.push(annotation);
         this.updateUI();
         
@@ -234,11 +246,12 @@ class AnnotationManager {
             Object.assign(annotation, updates);
             this.updateUI();
         }
-    }
-
-    selectAnnotation(id) {
+    }    selectAnnotation(id) {
         this.selectedAnnotation = id;
         this.updateUI();
+        
+        // Update restore button visibility
+        this.updateRestoreButton();
         
         // Scroll annotation into view
         const element = document.querySelector(`[data-annotation-id="${id}"]`);
@@ -247,9 +260,30 @@ class AnnotationManager {
         }
     }
 
-    clearSelection() {
+    getSelectedAnnotation() {
+        if (this.selectedAnnotation) {
+            return this.annotations.find(ann => ann.id === this.selectedAnnotation);
+        }
+        return null;
+    }clearSelection() {
         this.selectedAnnotation = null;
         this.updateUI();
+        this.updateRestoreButton();
+    }
+
+    updateRestoreButton() {
+        const restoreBtn = document.getElementById('restoreOriginal');
+        if (!restoreBtn) return;
+        
+        const selectedAnnotation = this.annotations.find(ann => ann.id === this.selectedAnnotation);
+        const hasOriginal = selectedAnnotation && selectedAnnotation.originalPolygon && selectedAnnotation.simplified;
+        
+        restoreBtn.disabled = !hasOriginal;
+        if (hasOriginal) {
+            restoreBtn.title = `Restore original polygon with ${selectedAnnotation.originalPolygon.length} points`;
+        } else {
+            restoreBtn.title = 'No original polygon available';
+        }
     }
 
     getAnnotationAtPoint(point) {
@@ -280,25 +314,31 @@ class AnnotationManager {
                 </div>
             `;
             return;
-        }
-        
-        container.innerHTML = this.annotations.map(annotation => `
-            <div class="annotation-item ${this.selectedAnnotation === annotation.id ? 'selected' : ''}" 
-                 data-annotation-id="${annotation.id}">
-                <div class="annotation-info">
-                    <h4>${annotation.label}</h4>
-                    <p>${annotation.source === 'ai' ? 'AI Generated' : 'Manual'} • ${annotation.polygon.length} points</p>
+        }        container.innerHTML = this.annotations.map(annotation => {
+            const isEditing = window.canvasManager && window.canvasManager.isEditingPolygon && window.canvasManager.editingAnnotationId === annotation.id;
+            return `
+                <div class="annotation-item ${this.selectedAnnotation === annotation.id ? 'selected' : ''} ${isEditing ? 'editing' : ''}" 
+                     data-annotation-id="${annotation.id}">                    <div class="annotation-info">
+                        <h4>${annotation.label}</h4>
+                        <p>${annotation.source === 'ai' ? 'AI Generated' : 'Manual'} • ${annotation.polygon.length} points${annotation.simplified ? ' (simplified)' : ''}</p>
+                    </div>
+                    <div class="annotation-actions">
+                        <button class="action-btn" onclick="annotationManager.editPolygon('${annotation.id}')" title="Edit polygon">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        ${annotation.originalPolygon ? `<button class="action-btn" onclick="annotationManager.resimplifyPolygon('${annotation.id}')" title="Re-simplify with current settings">
+                            <i class="fas fa-compress"></i>
+                        </button>` : ''}
+                        <button class="action-btn" onclick="annotationManager.editAnnotation('${annotation.id}')" title="Edit label">
+                            <i class="fas fa-tag"></i>
+                        </button>
+                        <button class="action-btn" onclick="annotationManager.deleteAnnotation('${annotation.id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="annotation-actions">
-                    <button class="action-btn" onclick="annotationManager.editAnnotation('${annotation.id}')" title="Edit label">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn" onclick="annotationManager.deleteAnnotation('${annotation.id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         // Add click handlers for selection
         container.querySelectorAll('.annotation-item').forEach(item => {
@@ -337,6 +377,65 @@ class AnnotationManager {
             this.updateAnnotation(id, { label: newLabel.trim() });
             this.saveAnnotation(id);
         }
+    }    editPolygon(id) {
+        // Switch to select tool for editing
+        window.canvasManager.setTool('select');
+        window.canvasManager.updateToolButtons();
+        
+        // Select the annotation
+        this.selectAnnotation(id);
+        
+        // Enable persistent edit mode
+        window.canvasManager.editModeActive = true;
+        window.canvasManager.startPolygonEditing(id);
+        window.canvasManager.updateEditToggleButton();
+        
+        // Show editing instructions
+        Utils.showNotification(
+            'Edit Mode ON: ' +
+            'Click and drag vertices to move them • ' +
+            'Click on edge to add new vertex • ' +
+            'Right-click vertex to delete • ' +
+            'Use Edit Mode button to toggle off',
+            5000
+        );
+    }
+
+    resimplifyPolygon(id) {
+        const annotation = this.annotations.find(ann => ann.id === id);
+        if (!annotation || !annotation.originalPolygon) {
+            Utils.showToast('No original polygon available for re-simplification', 'warning');
+            return;
+        }
+
+        // Get current settings
+        const settings = window.app ? window.app.getSimplificationSettings() : {
+            maxPoints: 20,
+            minTolerance: 0.005,
+            maxTolerance: 0.02
+        };
+
+        // Re-simplify using current settings
+        const newSimplified = Utils.adaptiveSimplifyPolygon(
+            annotation.originalPolygon,
+            settings.maxPoints,
+            settings.minTolerance,
+            settings.maxTolerance
+        );
+
+        // Update annotation
+        annotation.polygon = newSimplified;
+        annotation.simplified = annotation.originalPolygon.length !== newSimplified.length;
+        annotation.canvasPolygon = null; // Force recalculation
+
+        // Update UI
+        this.updateUI();
+        window.canvasManager.redraw();
+
+        // Save changes
+        this.saveAnnotation(id);
+
+        Utils.showToast(`Re-simplified polygon: ${annotation.originalPolygon.length} → ${newSimplified.length} points`, 'success');
     }
 
     async saveAnnotation(annotationId) {
@@ -350,15 +449,9 @@ class AnnotationManager {
                 polygon: annotation.polygon,
                 label: annotation.label,
                 source: annotation.source
-            });
-        } catch (error) {
+            });        } catch (error) {
             console.error('Failed to save annotation:', error);
         }
-    }
-
-    editAnnotation(id) {
-        this.selectAnnotation(id);
-        this.showLabelModal(id);
     }
 
     deleteAnnotation(id) {
@@ -506,26 +599,41 @@ class AnnotationManager {
                              bounds.maxY >= 0 && bounds.minY <= canvasBounds.height;
             
             console.log(`Annotation ${index}: ${isVisible ? 'VISIBLE' : 'OUTSIDE'} (${bounds.minX.toFixed(0)}-${bounds.maxX.toFixed(0)}, ${bounds.minY.toFixed(0)}-${bounds.maxY.toFixed(0)})`);
-            
-            // Only update canvas polygon if it has actually changed to prevent unnecessary updates
-            if (!annotation.canvasPolygon || 
+              // Only update canvas polygon if it has actually changed and we're not dragging
+            if (!annotation.isDragging && 
+                (!annotation.canvasPolygon || 
                 annotation.lastScale !== scale || 
                 annotation.lastOffsetX !== offsetX || 
-                annotation.lastOffsetY !== offsetY) {
+                annotation.lastOffsetY !== offsetY)) {
                 annotation.canvasPolygon = canvasPolygon;
                 annotation.lastScale = scale;
                 annotation.lastOffsetX = offsetX;
                 annotation.lastOffsetY = offsetY;
+            } else if (!annotation.isDragging && !annotation.canvasPolygon) {
+                // Ensure we have a canvas polygon even if not dragging
+                annotation.canvasPolygon = canvasPolygon;
             }
-            
-            // Determine colors based on selection and source
+              // Determine colors based on selection and source
             let strokeColor = annotation.source === 'ai' ? '#10b981' : '#3b82f6';
             let fillColor = annotation.source === 'ai' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)';
+            let lineWidth = 2;
+            let dashPattern = [];
             
+            // Selected annotation styling
             if (this.selectedAnnotation === annotation.id) {
                 strokeColor = '#ef4444';
                 fillColor = 'rgba(239, 68, 68, 0.3)';
-            }            // Draw polygon fill (temporary fix - no DPR division)
+                
+                // Special styling for annotations in edit mode
+                if (window.canvasManager && 
+                    window.canvasManager.isEditingPolygon && 
+                    window.canvasManager.editingAnnotationId === annotation.id) {
+                    strokeColor = '#f59e0b'; // Orange for editing
+                    fillColor = 'rgba(245, 158, 11, 0.2)';
+                    lineWidth = 3;
+                    dashPattern = [5, 5]; // Dashed line for edit mode
+                }
+            }// Draw polygon fill (temporary fix - no DPR division)
             ctx.save();
             ctx.fillStyle = fillColor;
             ctx.beginPath();
@@ -541,11 +649,17 @@ class AnnotationManager {
             ctx.fill();
             ctx.restore();
             console.log(`Fill completed for annotation ${index}`);
-            
-            // Draw polygon outline (temporary fix - no DPR division)
+              // Draw polygon outline (temporary fix - no DPR division)
             ctx.save();
             ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 2;            ctx.beginPath();
+            ctx.lineWidth = lineWidth;
+            
+            // Apply dash pattern if provided
+            if (dashPattern.length > 0) {
+                ctx.setLineDash(dashPattern);
+            }
+            
+            ctx.beginPath();
             console.log(`Drawing annotation ${index}: stroke with color ${strokeColor}`);
             canvasPolygon.forEach((point, index) => {
                 if (index === 0) {
@@ -592,6 +706,27 @@ class AnnotationManager {
                 ctx.fillText(annotation.label, centerX, centerY);
                 ctx.restore();
             }
+                  // Draw editing border around the polygon to indicate edit mode
+        if (window.canvasManager && window.canvasManager.isEditingPolygon && 
+            window.canvasManager.editingAnnotationId === annotation.id) {
+            ctx.save();
+            ctx.strokeStyle = '#fbbf24'; // Yellow border for editing mode
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 5]);
+            ctx.shadowColor = 'rgba(251, 191, 36, 0.3)';
+            ctx.shadowBlur = 3;
+            ctx.beginPath();
+            canvasPolygon.forEach((point, index) => {
+                if (index === 0) {
+                    ctx.moveTo(point.x, point.y);
+                } else {
+                    ctx.lineTo(point.x, point.y);
+                }
+            });
+            ctx.closePath();
+            ctx.stroke();
+            ctx.restore();
+        }
         });
     }
 

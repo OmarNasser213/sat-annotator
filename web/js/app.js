@@ -116,8 +116,7 @@ class SATAnnotator {
             uploadArea.classList.remove('drag-over');
             this.handleFileSelect(e.dataTransfer.files);
         });
-        
-        // Export and clear buttons
+          // Export and clear buttons
         document.getElementById('exportBtn').addEventListener('click', () => {
             window.annotationManager.exportAnnotations();
         });
@@ -126,8 +125,18 @@ class SATAnnotator {
             window.annotationManager.clearAll();
         });
         
+        // Edit mode toggle button
+        document.getElementById('editToggle').addEventListener('click', () => {
+            if (window.canvasManager) {
+                window.canvasManager.toggleEditMode();
+            }
+        });
+        
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+        
+        // AI Segmentation Settings
+        this.setupAISettings();
         
         // Window events
         window.addEventListener('beforeunload', (e) => {
@@ -136,6 +145,74 @@ class SATAnnotator {
                 e.returnValue = message;
                 return message;
             }        });
+    }
+
+    setupAISettings() {
+        // Initialize AI segmentation settings
+        this.aiSettings = {
+            maxPoints: 20,
+            quality: 'medium',
+            toleranceMap: {
+                'high': { min: 0.001, max: 0.01 },
+                'medium': { min: 0.005, max: 0.02 },
+                'low': { min: 0.01, max: 0.05 }
+            }
+        };
+
+        // Max points slider
+        const maxPointsSlider = document.getElementById('maxPoints');
+        const maxPointsValue = document.getElementById('maxPointsValue');
+        
+        maxPointsSlider.addEventListener('input', (e) => {
+            this.aiSettings.maxPoints = parseInt(e.target.value);
+            maxPointsValue.textContent = e.target.value;
+        });
+
+        // Quality selector
+        const qualitySelect = document.getElementById('simplificationQuality');
+        qualitySelect.addEventListener('change', (e) => {
+            this.aiSettings.quality = e.target.value;
+        });
+
+        // Restore original button
+        const restoreBtn = document.getElementById('restoreOriginal');
+        restoreBtn.addEventListener('click', () => this.restoreOriginalPolygon());
+    }
+
+    getSimplificationSettings() {
+        const tolerances = this.aiSettings.toleranceMap[this.aiSettings.quality];
+        return {
+            maxPoints: this.aiSettings.maxPoints,
+            minTolerance: tolerances.min,
+            maxTolerance: tolerances.max
+        };
+    }
+
+    restoreOriginalPolygon() {
+        const selectedAnnotation = window.annotationManager.annotations.find(
+            ann => ann.id === window.annotationManager.selectedAnnotation
+        );
+        
+        if (!selectedAnnotation || !selectedAnnotation.originalPolygon) {
+            Utils.showToast('No original polygon available', 'warning');
+            return;
+        }
+
+        // Restore original polygon
+        selectedAnnotation.polygon = [...selectedAnnotation.originalPolygon];
+        selectedAnnotation.simplified = false;
+        
+        // Clear canvas polygon to force recalculation
+        selectedAnnotation.canvasPolygon = null;
+        
+        // Update UI and redraw
+        window.annotationManager.updateUI();
+        window.canvasManager.redraw();
+        
+        Utils.showToast(`Restored original polygon with ${selectedAnnotation.polygon.length} points`, 'success');
+        
+        // Save the change
+        window.annotationManager.saveAnnotation(selectedAnnotation.id);
     }
 
     toggleMobileMenu() {
@@ -190,11 +267,17 @@ class SATAnnotator {
                 }
                 window.annotationManager.clearSelection();
                 window.canvasManager.redraw();
-                break;
-            case 'Delete':
+                break;            case 'Delete':
                 e.preventDefault();
                 if (window.annotationManager.selectedAnnotation) {
                     window.annotationManager.deleteSelectedAnnotation();
+                }
+                break;
+            case 'e':
+            case 'E':
+                e.preventDefault();
+                if (window.canvasManager) {
+                    window.canvasManager.toggleEditMode();
                 }
                 break;
             case '+':
@@ -415,6 +498,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         console.log('DOM loaded, starting SAT Annotator...');
         window.satAnnotator = new SATAnnotator();
+        window.app = window.satAnnotator; // Alias for easier access
         await window.satAnnotator.initialize();
         console.log('SAT Annotator fully initialized');
     } catch (error) {

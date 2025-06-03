@@ -133,6 +133,159 @@ class Utils {
         return JSON.parse(JSON.stringify(obj));
     }
 
+    // Polygon simplification using Douglas-Peucker algorithm
+    static simplifyPolygon(points, tolerance = 0.01) {
+        if (points.length <= 2) return points;
+        
+        // Convert array format [[x,y]] to object format [{x,y}] if needed
+        const convertedPoints = points.map(point => {
+            if (Array.isArray(point)) {
+                return { x: point[0], y: point[1] };
+            }
+            return point;
+        });
+        
+        const simplified = this.douglasPeucker(convertedPoints, tolerance);
+        
+        // Convert back to original format
+        return simplified.map(point => {
+            if (Array.isArray(points[0])) {
+                return [point.x, point.y];
+            }
+            return point;
+        });
+    }
+
+    static douglasPeucker(points, tolerance) {
+        if (points.length <= 2) return points;
+        
+        // Find the point with the maximum distance from the line segment
+        let dmax = 0;
+        let index = 0;
+        const end = points.length - 1;
+        
+        for (let i = 1; i < end; i++) {
+            const d = this.perpendicularDistance(points[i], points[0], points[end]);
+            if (d > dmax) {
+                index = i;
+                dmax = d;
+            }
+        }
+        
+        // If max distance is greater than tolerance, recursively simplify
+        if (dmax > tolerance) {
+            // Recursive call
+            const recResults1 = this.douglasPeucker(points.slice(0, index + 1), tolerance);
+            const recResults2 = this.douglasPeucker(points.slice(index), tolerance);
+            
+            // Build the result list
+            return recResults1.slice(0, -1).concat(recResults2);
+        } else {
+            return [points[0], points[end]];
+        }
+    }
+
+    static perpendicularDistance(point, lineStart, lineEnd) {
+        const A = lineEnd.x - lineStart.x;
+        const B = lineEnd.y - lineStart.y;
+        const C = lineStart.x - point.x;
+        const D = lineStart.y - point.y;
+        
+        const dot = A * C + B * D;
+        const lenSq = A * A + B * B;
+        
+        if (lenSq === 0) {
+            // Line start and end are the same point
+            return Math.sqrt(C * C + D * D);
+        }
+        
+        const param = -dot / lenSq;
+        
+        let xx, yy;
+        if (param < 0) {
+            xx = lineStart.x;
+            yy = lineStart.y;
+        } else if (param > 1) {
+            xx = lineEnd.x;
+            yy = lineEnd.y;
+        } else {
+            xx = lineStart.x + param * A;
+            yy = lineStart.y + param * B;
+        }
+        
+        const dx = point.x - xx;
+        const dy = point.y - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // Calculate polygon area (for quality assessment)
+    static polygonArea(points) {
+        if (points.length < 3) return 0;
+        
+        let area = 0;
+        const n = points.length;
+        
+        for (let i = 0; i < n; i++) {
+            const j = (i + 1) % n;
+            const p1 = Array.isArray(points[i]) ? { x: points[i][0], y: points[i][1] } : points[i];
+            const p2 = Array.isArray(points[j]) ? { x: points[j][0], y: points[j][1] } : points[j];
+            area += p1.x * p2.y - p2.x * p1.y;
+        }
+        
+        return Math.abs(area) / 2;
+    }
+
+    // Adaptive simplification that preserves area
+    static adaptiveSimplifyPolygon(points, maxPoints = 20, minTolerance = 0.001, maxTolerance = 0.05) {
+        if (points.length <= maxPoints) return points;
+        
+        const originalArea = this.polygonArea(points);
+        let tolerance = minTolerance;
+        let simplified = points;
+        
+        // Binary search for optimal tolerance
+        let low = minTolerance;
+        let high = maxTolerance;
+        
+        while (high - low > 0.001 && simplified.length > maxPoints) {
+            tolerance = (low + high) / 2;
+            simplified = this.simplifyPolygon(points, tolerance);
+            
+            if (simplified.length > maxPoints) {
+                low = tolerance;
+            } else {
+                high = tolerance;
+            }
+        }
+        
+        // Ensure we don't lose too much area (quality check)
+        const simplifiedArea = this.polygonArea(simplified);
+        const areaRatio = simplifiedArea / originalArea;
+        
+        // If we lost too much area, use a more conservative approach
+        if (areaRatio < 0.8) {
+            // Fall back to uniform point sampling
+            return this.uniformSamplePolygon(points, maxPoints);
+        }
+        
+        return simplified;
+    }
+
+    // Uniform sampling as fallback
+    static uniformSamplePolygon(points, targetPoints) {
+        if (points.length <= targetPoints) return points;
+        
+        const step = points.length / targetPoints;
+        const sampled = [];
+        
+        for (let i = 0; i < targetPoints; i++) {
+            const index = Math.floor(i * step);
+            sampled.push(points[index]);
+        }
+        
+        return sampled;
+    }
+
     // Validate image file
     static isValidImageFile(file) {
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'image/tif'];
@@ -277,9 +430,45 @@ class Utils {
                     setTimeout(check, interval);
                 }
             };
-            
-            check();
+              check();
         });
+    }
+
+    // Show a temporary notification message
+    static showNotification(message, duration = 3000) {
+        // Create or reuse notification element
+        let notification = document.getElementById('statusNotification');
+        
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'statusNotification';
+            notification.style.position = 'fixed';
+            notification.style.bottom = '20px';
+            notification.style.left = '50%';
+            notification.style.transform = 'translateX(-50%)';
+            notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            notification.style.color = 'white';
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '4px';
+            notification.style.zIndex = '1000';
+            notification.style.transition = 'opacity 0.3s ease';
+            notification.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+            document.body.appendChild(notification);
+        }
+        
+        // Clear any existing timeout
+        if (notification.timeoutId) {
+            clearTimeout(notification.timeoutId);
+        }
+        
+        // Update message and display notification
+        notification.textContent = message;
+        notification.style.opacity = '1';
+        
+        // Hide after duration
+        notification.timeoutId = setTimeout(() => {
+            notification.style.opacity = '0';
+        }, duration);
     }
 }
 
