@@ -17,38 +17,65 @@ else:
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 async def save_upload_file(file: UploadFile) -> dict:
-    """Save an uploaded file to the upload directory."""
+    """Save an uploaded file to the upload directory and convert TIFF to PNG if needed."""
     # Generate unique filename
-    file_extension = os.path.splitext(file.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-      # Create full path
-    file_path = UPLOAD_DIR / unique_filename
+    file_extension = os.path.splitext(file.filename)[1].lower()
+    temp_filename = f"{uuid.uuid4()}{file_extension}"
     
-    # Save the file
+    # Create temporary file path
+    temp_file_path = UPLOAD_DIR / temp_filename
+    
+    # Save the original file temporarily
     contents = await file.read()
-    with open(file_path, "wb") as f:
+    with open(temp_file_path, "wb") as f:
         f.write(contents)
     
-    # Get image dimensions if possible
+    # Check if we need to convert TIFF to PNG for browser compatibility
+    final_file_path = temp_file_path
+    final_filename = temp_filename
+    
+    if file_extension in ['.tif', '.tiff']:
+        # Convert TIFF to PNG for browser compatibility
+        png_filename = f"{uuid.uuid4()}.png"
+        png_file_path = UPLOAD_DIR / png_filename
+        
+        try:
+            with Image.open(temp_file_path) as img:
+                # Convert to RGB if necessary (some TIFFs might be in different color modes)
+                if img.mode not in ('RGB', 'RGBA'):
+                    img = img.convert('RGB')
+                # Save as PNG
+                img.save(png_file_path, 'PNG')
+                
+                # Remove the temporary TIFF file
+                os.remove(temp_file_path)
+                
+                # Use the PNG file as the final file
+                final_file_path = png_file_path
+                final_filename = png_filename
+        except Exception as e:
+            # If conversion fails, keep the original TIFF file
+            print(f"Warning: Failed to convert TIFF to PNG: {e}")
+    
+    # Get image dimensions and resolution
     resolution = None
     try:
-        with Image.open(file_path) as img:
+        with Image.open(final_file_path) as img:
             resolution = f"{img.width}x{img.height}"
     except Exception:
         # Not a valid image or PIL cannot read it
-        pass
-    
+        pass    
     # Get file size
-    file_size = os.path.getsize(file_path)
+    file_size = os.path.getsize(final_file_path)
     
     # Store only the filename for the path to make it work in both Docker and local environments
     # This will be served from the /uploads/ route
     return {
-        "filename": unique_filename,
+        "filename": final_filename,
         "original_filename": file.filename,
         "size": file_size,
         "content_type": file.content_type,
-        "path": f"uploads/{unique_filename}",  # Use relative path for consistent access
+        "path": f"uploads/{final_filename}",  # Use relative path for consistent access
         "resolution": resolution
     }
 
