@@ -11,9 +11,10 @@ import os
 import logging
 from datetime import datetime
 import cv2
+from app.schemas.session_schemas import ManualAnnotationCreate, ManualAnnotationUpdate, AnnotationResponse
 
 # Set up logging
-log_dir = Path("app/logs")
+log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
 log_filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 logging.basicConfig(
@@ -47,6 +48,10 @@ async def segment_from_point(
 ):
     """Generate segmentation from a point click, with caching for subsequent clicks on the same image."""
     session_id = session_manager.session_id
+    
+    # Debug: log the received coordinates
+    logger.debug(f"Received segmentation request: image_id={prompt.image_id}, x={prompt.x}, y={prompt.y}")
+    
     image = session_store.get_image(session_id, prompt.image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -226,3 +231,169 @@ async def clear_image_cache(
     segmenter.clear_cache(image_path)
     
     return {"success": True, "message": f"Cache cleared for image {image_id}"}
+
+@router.post("/annotations/", response_model=AnnotationResponse)
+async def save_manual_annotation(
+    annotation_data: ManualAnnotationCreate,
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    """Save a manual annotation"""
+    session_id = session_manager.session_id
+    
+    # Verify the image exists
+    image = session_store.get_image(session_id, annotation_data.image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    try:        # Define annotation directory
+        in_docker = os.path.exists('/.dockerenv')
+        if in_docker:
+            annotation_dir = Path("/app/annotations")
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            annotation_dir = Path(os.path.join(base_dir, "annotations"))
+        annotation_dir.mkdir(exist_ok=True)
+        
+        # Create GeoJSON format for the annotation
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "label": annotation_data.label,
+                        "type": annotation_data.type,
+                        "source": annotation_data.source,
+                        "created": datetime.now().isoformat()
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[point[0], point[1]] for point in annotation_data.polygon]]
+                    }
+                }
+            ]
+        }
+        
+        # Save annotation file
+        annotation_path = annotation_dir / f"manual_{session_id}_{annotation_data.image_id}_{annotation_data.id}.json"
+        with open(annotation_path, "w") as f:
+            json.dump(geojson_data, f, indent=2)
+        
+        # Add annotation to session store
+        annotation = session_store.add_annotation(
+            session_id,
+            annotation_data.image_id,
+            annotation_id=annotation_data.id,
+            file_path=str(annotation_path),
+            auto_generated=False
+        )
+        
+        return AnnotationResponse(
+            success=True,
+            message="Annotation saved successfully",
+            annotation_id=annotation.annotation_id if annotation else annotation_data.id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error saving annotation: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error saving annotation: {str(e)}"
+        )
+
+@router.put("/annotations/{annotation_id}", response_model=AnnotationResponse)
+async def update_annotation(
+    annotation_id: str,
+    update_data: ManualAnnotationUpdate,
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    """Update an existing annotation"""
+    session_id = session_manager.session_id
+    
+    # Get the annotation from session store
+    annotation = session_store.get_annotation(session_id, annotation_id)
+    if not annotation:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    
+    try:
+        # Load existing annotation data
+        if not os.path.exists(annotation.file_path):
+            raise HTTPException(status_code=404, detail="Annotation file not found")
+        
+        with open(annotation.file_path, 'r') as f:
+            geojson_data = json.load(f)
+        
+        # Update the data
+        if geojson_data.get("features"):
+            feature = geojson_data["features"][0]
+            
+            if update_data.polygon:
+                feature["geometry"]["coordinates"] = [[[point[0], point[1]] for point in update_data.polygon]]
+            
+            if update_data.label:
+                feature["properties"]["label"] = update_data.label
+            
+            # Update modified timestamp
+            feature["properties"]["modified"] = datetime.now().isoformat()
+        
+        # Save updated annotation
+        with open(annotation.file_path, "w") as f:
+            json.dump(geojson_data, f, indent=2)
+        
+        return AnnotationResponse(
+            success=True,
+            message="Annotation updated successfully",
+            annotation_id=annotation_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error updating annotation: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating annotation: {str(e)}"
+        )
+
+@router.delete("/annotations/{annotation_id}", response_model=AnnotationResponse)
+async def delete_annotation(
+    annotation_id: str,
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    """Delete an annotation"""
+    session_id = session_manager.session_id
+    
+    logger.info(f"Attempting to delete annotation {annotation_id} from session {session_id}")
+    
+    # List all annotations in session for debugging
+    all_annotations = session_store.get_annotations(session_id)
+    logger.info(f"Available annotations in session: {[ann.annotation_id for ann in all_annotations]}")
+    
+    # Get the annotation from session store
+    annotation = session_store.get_annotation(session_id, annotation_id)
+    if not annotation:
+        logger.error(f"Annotation {annotation_id} not found in session {session_id}")
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    
+    logger.info(f"Found annotation to delete: {annotation.annotation_id}")
+    
+    try:
+        # Delete the annotation file if it exists
+        if os.path.exists(annotation.file_path):
+            os.remove(annotation.file_path)
+            logger.info(f"Deleted annotation file: {annotation.file_path}")
+        
+        # Remove from session store
+        success = session_store.remove_annotation(session_id, annotation_id)
+        logger.info(f"Removed annotation from session store: {success}")
+        
+        return AnnotationResponse(
+            success=True,
+            message="Annotation deleted successfully",
+            annotation_id=annotation_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error deleting annotation: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting annotation: {str(e)}"
+        )

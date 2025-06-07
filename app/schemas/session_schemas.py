@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 
 class ImageBase(BaseModel):
@@ -38,3 +38,21 @@ class SessionInfo(BaseModel):
     image_count: int
     annotation_count: int
     created_at: datetime
+
+# Manual annotation schemas for frontend requests
+class ManualAnnotationCreate(BaseModel):
+    image_id: str
+    id: str  # Annotation ID from frontend
+    type: str = "polygon"
+    polygon: List[List[float]]  # List of [x, y] coordinate pairs (normalized 0-1)
+    label: str
+    source: str = "manual"
+
+class ManualAnnotationUpdate(BaseModel):
+    polygon: Optional[List[List[float]]] = None
+    label: Optional[str] = None
+
+class AnnotationResponse(BaseModel):
+    success: bool
+    message: str
+    annotation_id: Optional[str] = None

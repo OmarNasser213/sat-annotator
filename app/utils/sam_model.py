@@ -8,9 +8,7 @@ from typing import Dict, Tuple, List, Optional
 
 class SAMSegmenter:
     def __init__(self):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        # Check if running in Docker or locally
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')        # Check if running in Docker or locally
         in_docker = os.path.exists('/.dockerenv')
         base_path = Path("/app") if in_docker else Path(".")
         
@@ -71,8 +69,7 @@ class SAMSegmenter:
             point_coords=point_coords_array,
             point_labels=point_labels,
             multimask_output=True
-        )
-        
+        )        
         best_mask_idx = np.argmax(scores)
         mask = masks[best_mask_idx].astype(np.uint8) * 255  # Convert to 8-bit mask
         
@@ -82,7 +79,7 @@ class SAMSegmenter:
         return mask
 
     def mask_to_polygon(self, mask):
-        """Convert binary mask to polygon coordinates"""
+        """Convert binary mask to polygon coordinates (normalized 0-1)"""
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return None
@@ -92,6 +89,20 @@ class SAMSegmenter:
         
         if not isinstance(polygon[0], list):
             polygon = [polygon]
+        
+        # Get image dimensions for normalization
+        if self.current_image_path and self.current_image_path in self.cache:
+            height, width = self.cache[self.current_image_path]['image_size']
+            
+            # Normalize coordinates to 0-1 range
+            normalized_polygon = []
+            for point in polygon:
+                if len(point) == 2:  # [x, y]
+                    normalized_x = point[0] / width
+                    normalized_y = point[1] / height
+                    normalized_polygon.append([normalized_x, normalized_y])
+            
+            return normalized_polygon
             
         return polygon
 

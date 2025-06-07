@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Canvas Test</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; }
+        #testCanvas { border: 2px solid #000; display: block; }
+        button { margin: 5px; padding: 10px; }
+        pre { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Minimal Canvas Test</h1>
+    
+    <button onclick="drawBasic()">Draw Basic Shapes</button>
+    <button onclick="drawImage()">Draw Image</button>
+    <button onclick="clearCanvas()">Clear</button>
+    
+    <canvas id="testCanvas" width="600" height="400"></canvas>
+    
+    <pre id="log"></pre>
+
+    <script>
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        const log = document.getElementById('log');
+        
+        function addLog(msg) {
+            log.textContent += new Date().toLocaleTimeString() + ': ' + msg + '\n';
+            console.log(msg);
+        }
+        
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            addLog('Canvas cleared');
+        }
+        
+        function drawBasic() {
+            addLog('Drawing basic shapes...');
+            
+            // Red rectangle
+            ctx.fillStyle = 'red';
+            ctx.fillRect(50, 50, 100, 80);
+            addLog('Red rectangle at (50,50)');
+            
+            // Blue circle
+            ctx.beginPath();
+            ctx.arc(300, 150, 40, 0, 2 * Math.PI);
+            ctx.fillStyle = 'blue';
+            ctx.fill();
+            addLog('Blue circle at (300,150)');
+            
+            // Green text
+            ctx.fillStyle = 'green';
+            ctx.font = '20px Arial';
+            ctx.fillText('Test Text', 200, 300);
+            addLog('Green text at (200,300)');
+        }
+        
+        function drawImage() {
+            addLog('Creating and drawing image...');
+            
+            // Create a simple test image programmatically
+            const testCanvas = document.createElement('canvas');
+            testCanvas.width = 100;
+            testCanvas.height = 100;
+            const testCtx = testCanvas.getContext('2d');
+            
+            // Draw a pattern on the test canvas
+            testCtx.fillStyle = 'yellow';
+            testCtx.fillRect(0, 0, 100, 100);
+            testCtx.fillStyle = 'purple';
+            testCtx.fillRect(20, 20, 60, 60);
+            testCtx.fillStyle = 'orange';
+            testCtx.beginPath();
+            testCtx.arc(50, 50, 20, 0, 2 * Math.PI);
+            testCtx.fill();
+            
+            // Convert to image
+            const img = new Image();
+            img.onload = function() {
+                addLog('Test image created and loaded');
+                addLog('Image dimensions: ' + img.width + 'x' + img.height);
+                
+                // Draw the image at original size
+                ctx.drawImage(img, 400, 50);
+                addLog('Image drawn at (400,50) original size');
+                
+                // Draw the image scaled
+                ctx.drawImage(img, 100, 200, 50, 50);
+                addLog('Image drawn at (100,200) scaled to 50x50');
+                
+                // Also test with an actual image URL
+                testRealImage();
+            };
+            
+            img.src = testCanvas.toDataURL();
+        }
+        
+        function testRealImage() {
+            const realImg = new Image();
+            realImg.onload = function() {
+                addLog('Real image loaded: ' + realImg.naturalWidth + 'x' + realImg.naturalHeight);
+                
+                // Draw scaled down to fit
+                const scale = Math.min(150 / realImg.naturalWidth, 150 / realImg.naturalHeight);
+                const w = realImg.naturalWidth * scale;
+                const h = realImg.naturalHeight * scale;
+                
+                ctx.drawImage(realImg, 350, 200, w, h);
+                addLog('Real image drawn at (350,200) scaled to ' + w + 'x' + h);
+            };
+            
+            realImg.onerror = function() {
+                addLog('Failed to load real image - this is expected if no server');
+            };
+            
+            // Try to load from the SAT Annotator server
+            realImg.crossOrigin = 'anonymous';
+            realImg.src = 'http://localhost:8000/uploads/cfd5471f-7380-436d-8a50-aff35ce66dc8.jpg';
+        }
+        
+        // Initialize
+        addLog('Canvas test initialized');
+        addLog('Canvas size: ' + canvas.width + 'x' + canvas.height);
+        addLog('Context available: ' + !!ctx);
+    </script>
+</body>
+</html>

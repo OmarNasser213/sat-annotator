@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAT Annotator Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .demo-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .feature {
+            margin: 15px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .keyboard-shortcuts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .shortcut {
+            background: #e9ecef;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .btn {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛰️ SAT Annotator Demo</h1>
+    <p>Welcome to the Satellite Image Annotation Tool frontend demo!</p>
+
+    <div class="demo-section">
+        <h2>🚀 Quick Start</h2>
+        <p>The frontend has been successfully built and is ready to use!</p>
+        <ol>
+            <li>Make sure the FastAPI backend is running: <code>uvicorn app.main:app --reload</code></li>
+            <li>Visit <a href="http://localhost:8000" target="_blank">http://localhost:8000</a></li>
+            <li>Upload a satellite image using drag & drop or the upload button</li>
+            <li>Start annotating with AI segmentation or manual polygon tools</li>
+        </ol>
+    </div>
+
+    <div class="demo-section">
+        <h2>✨ Key Features</h2>
+        
+        <div class="feature">
+            <h3>📤 Image Upload</h3>
+            <p>Supports JPG, PNG, TIFF, and GeoTIFF formats. Drag & drop or click to browse.</p>
+        </div>
+        
+        <div class="feature">
+            <h3>🤖 AI Segmentation</h3>
+            <p>Click the AI Point tool and click on image features to generate automatic segmentation using SAM model.</p>
+        </div>
+        
+        <div class="feature">
+            <h3>✏️ Manual Annotation</h3>
+            <p>Draw precise polygon annotations manually with the polygon tool.</p>
+        </div>
+        
+        <div class="feature">
+            <h3>📱 Responsive Design</h3>
+            <p>Works perfectly on desktop, tablet, and mobile devices with touch support.</p>
+        </div>
+        
+        <div class="feature">
+            <h3>💾 JSON Export</h3>
+            <p>Export all annotations in a comprehensive JSON format with metadata and statistics.</p>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2>⌨️ Keyboard Shortcuts</h2>
+        <div class="keyboard-shortcuts">
+            <div class="shortcut"><strong>1</strong> - Select tool</div>
+            <div class="shortcut"><strong>2</strong> - AI Point tool</div>
+            <div class="shortcut"><strong>3</strong> - Polygon tool</div>
+            <div class="shortcut"><strong>4</strong> - Pan tool</div>
+            <div class="shortcut"><strong>ESC</strong> - Cancel/Clear</div>
+            <div class="shortcut"><strong>DELETE</strong> - Delete annotation</div>
+            <div class="shortcut"><strong>+</strong> - Zoom in</div>
+            <div class="shortcut"><strong>-</strong> - Zoom out</div>
+            <div class="shortcut"><strong>0</strong> - Fit to screen</div>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2>🛠️ Annotation Workflow</h2>
+        <ol>
+            <li><strong>Upload Image:</strong> Drag satellite image to upload area</li>
+            <li><strong>Select Tool:</strong> Choose AI Point for automatic segmentation or Polygon for manual drawing</li>
+            <li><strong>Annotate:</strong> 
+                <ul>
+                    <li>AI Point: Click on features to generate segmentation</li>
+                    <li>Polygon: Click to place points, double-click or right-click to finish</li>
+                </ul>
+            </li>
+            <li><strong>Label:</strong> Add descriptive labels to your annotations</li>
+            <li><strong>Manage:</strong> Edit, delete, or select annotations from the sidebar</li>
+            <li><strong>Export:</strong> Download annotations as JSON file</li>
+        </ol>
+    </div>
+
+    <div class="demo-section">
+        <h2>📊 Sample JSON Export Structure</h2>
+        <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">
+{
+  "image": {
+    "id": "1",
+    "filename": "satellite.tif",
+    "resolution": "1024x768",
+    "width": 1024,
+    "height": 768
+  },
+  "annotations": [
+    {
+      "id": "ann_1",
+      "type": "ai_segment",
+      "label": "building",
+      "polygon": [[0.1,0.1], [0.2,0.1], [0.2,0.2], [0.1,0.2]],
+      "source": "ai",
+      "created": "2025-06-02T...",
+      "points_count": 4
+    }
+  ],
+  "export_info": {
+    "format": "json",
+    "exported_at": "2025-06-02T...",
+    "tool": "SAT Annotator",
+    "version": "1.0.0"
+  },
+  "statistics": {
+    "total_annotations": 5,
+    "ai_generated": 3,
+    "manual": 2,
+    "unique_labels": 3
+  }
+}
+        </pre>
+    </div>
+
+    <div class="demo-section">
+        <h2>🔗 Next Steps</h2>
+        <a href="http://localhost:8000" class="btn" target="_blank">Open SAT Annotator</a>
+        <a href="http://localhost:8000/docs" class="btn" target="_blank">API Documentation</a>
+    </div>
+
+    <div class="demo-section">
+        <h2>📱 Mobile Features</h2>
+        <p>On mobile devices, the interface adapts with:</p>
+        <ul>
+            <li>Collapsible sidebar with menu button</li>
+            <li>Touch-optimized controls</li>
+            <li>Responsive layout and text sizes</li>
+            <li>Touch gestures for pan and zoom</li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <h2>🎯 Browser Compatibility</h2>
+        <p>Tested and optimized for:</p>
+        <ul>
+            <li>Chrome 90+</li>
+            <li>Firefox 88+</li>
+            <li>Safari 14+</li>
+            <li>Edge 90+</li>
+        </ul>
+    </div>
+
+    <script>
+        // Simple demo functionality
+        console.log('🛰️ SAT Annotator Frontend Demo Loaded!');
+        console.log('Visit http://localhost:8000 to try the full application');
+    </script>
+</body>
+</html>

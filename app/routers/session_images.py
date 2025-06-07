@@ -100,36 +100,79 @@ def get_image(
 
     return image
 
+@router.delete("/images/{image_id}", response_model=dict)
+async def delete_image(
+    image_id: str,
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    """
+    Delete an image and its associated annotations.
+    """
+    session_id = session_manager.session_id
+    
+    # Get the image from session store
+    image = session_store.get_image(session_id, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    try:
+        # Delete the image file if it exists
+        if os.path.exists(image.file_path):
+            os.remove(image.file_path)
+        
+        # Delete all annotations associated with this image
+        annotations = session_store.get_annotations(session_id, image_id)
+        for annotation in annotations:
+            if os.path.exists(annotation.file_path):
+                os.remove(annotation.file_path)
+            session_store.remove_annotation(session_id, annotation.annotation_id)
+        
+        # Remove image from session store
+        success = session_store.remove_image(session_id, image_id)
+        
+        if success:
+            return {"success": True, "message": "Image and associated annotations deleted successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to remove image from session")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting image: {str(e)}")
+
 @router.get("/session-info/")
 def get_session_info(
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """Get information about the current session"""
     session_id = session_manager.session_id
-    session = session_store.get_session(session_id)
+    session_data = session_store.get_session(session_id)
     
-    if not session:
+    if session_data:
         return {
             "session_id": session_id,
-            "image_count": 0,
-            "annotation_count": 0,
-            "created_at": None
+            "images_count": len(session_data.get("images", {})),
+            "annotations_count": len(session_data.get("annotations", {})),
+            "created_at": session_data.get("created_at")
         }
     
     return {
         "session_id": session_id,
-        "image_count": len(session["images"]),
-        "annotation_count": len(session["annotations"]),
-        "created_at": session["created_at"]
+        "images_count": 0,
+        "annotations_count": 0,
+        "created_at": None
     }
 
-@router.post("/clear-session/")
+@router.delete("/session/")
 def clear_session(
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """Clear the current session data"""
     session_id = session_manager.session_id
-    session_store.delete_session(session_id)
+    
+    # Remove session from store
+    if session_id in session_store.sessions:
+        del session_store.sessions[session_id]
+    
+    # Clear the session cookie
     session_manager.clear_session()
     
     return {"message": "Session cleared successfully"}

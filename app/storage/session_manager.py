@@ -28,16 +28,15 @@ def set_session_cookie(response: Response, session_id: str) -> None:
     """
     Set the session cookie in the response.
     Call this function when responding to a request if a new session was created.
+    This creates a session cookie that expires when the browser is closed.
     """
-    expires = datetime.now() + timedelta(days=SESSION_TIMEOUT_DAYS)
-    
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        expires=expires.timestamp(),
         httponly=True,
         samesite="lax",
         path="/"
+        # No expires parameter = session cookie (cleared on browser close/reload)
     )
 
 class SessionManager:
