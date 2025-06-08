@@ -27,7 +27,7 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 - AI-powered segmentation using Segment Anything Model (SAM)
 - Point-prompt based segmentation
 - Automatic polygon generation from segmentation masks
-- GeoJSON export format support
+- JSON export format support
 
 **Planned:**
 - Multiple prompt types (box, points, text)
@@ -226,7 +226,7 @@ The application uses PostgreSQL with the following structure:
 Relationships:
 - An image can have multiple annotation files
 - Annotation files can be linked to AI models that generated them
-- Annotations store GeoJSON formatted polygons
+- Annotations store JSON formatted polygons
 
 ## Development Roadmap
 
@@ -237,7 +237,7 @@ Relationships:
 - [x] Image metadata extraction
 - [x] SAM model integration
 - [x] Point-prompt segmentation
-- [x] GeoJSON export
+- [x] JSON export
 - [ ] Multiple prompt types support
 - [ ] Manual annotation interface
 - [ ] Additional export formats

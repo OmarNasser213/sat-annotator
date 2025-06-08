@@ -116,11 +116,10 @@ async def segment_from_point(
         logger.debug(f"Overlay saved at {overlay_path}")
         
         polygon = segmenter.mask_to_polygon(mask)
-        
         if not polygon:
             raise HTTPException(status_code=400, detail="Could not generate polygon from mask")
         
-        # Save GeoJSON
+        # Save JSON
         annotation_path = annotation_dir / f"annotation_{session_id}_{image.image_id}_{len(polygon)}.json"
         with open(annotation_path, "w") as f:
             json.dump({
@@ -175,7 +174,6 @@ async def get_image_annotations(
 ):
     """Get all annotations for a specific image"""
     session_id = session_manager.session_id
-    
     image = session_store.get_image(session_id, image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -188,13 +186,13 @@ async def get_image_annotations(
             file_path = ann.file_path
             if os.path.exists(file_path):
                 with open(file_path, 'r') as f:
-                    geojson = json.load(f)
+                    json_data = json.load(f)
                 
                 result.append({
                     "annotation_id": ann.annotation_id,
                     "created_at": ann.created_at,
                     "auto_generated": ann.auto_generated,
-                    "data": geojson
+                    "data": json_data
                 })
         except Exception as e:
             continue
@@ -239,13 +237,13 @@ async def save_manual_annotation(
 ):
     """Save a manual annotation"""
     session_id = session_manager.session_id
-    
-    # Verify the image exists
+      # Verify the image exists
     image = session_store.get_image(session_id, annotation_data.image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    try:        # Define annotation directory
+    try:
+        # Define annotation directory
         in_docker = os.path.exists('/.dockerenv')
         if in_docker:
             annotation_dir = Path("/app/annotations")
@@ -254,8 +252,8 @@ async def save_manual_annotation(
             annotation_dir = Path(os.path.join(base_dir, "annotations"))
         annotation_dir.mkdir(exist_ok=True)
         
-        # Create GeoJSON format for the annotation
-        geojson_data = {
+        # Create JSON format for the annotation
+        json_data = {
             "type": "FeatureCollection",
             "features": [
                 {
@@ -273,11 +271,10 @@ async def save_manual_annotation(
                 }
             ]
         }
-        
-        # Save annotation file
+          # Save annotation file
         annotation_path = annotation_dir / f"manual_{session_id}_{annotation_data.image_id}_{annotation_data.id}.json"
         with open(annotation_path, "w") as f:
-            json.dump(geojson_data, f, indent=2)
+            json.dump(json_data, f, indent=2)
         
         # Add annotation to session store
         annotation = session_store.add_annotation(
@@ -315,17 +312,16 @@ async def update_annotation(
     if not annotation:
         raise HTTPException(status_code=404, detail="Annotation not found")
     
-    try:
-        # Load existing annotation data
+    try:        # Load existing annotation data
         if not os.path.exists(annotation.file_path):
             raise HTTPException(status_code=404, detail="Annotation file not found")
         
         with open(annotation.file_path, 'r') as f:
-            geojson_data = json.load(f)
+            json_data = json.load(f)
         
         # Update the data
-        if geojson_data.get("features"):
-            feature = geojson_data["features"][0]
+        if json_data.get("features"):
+            feature = json_data["features"][0]
             
             if update_data.polygon:
                 feature["geometry"]["coordinates"] = [[[point[0], point[1]] for point in update_data.polygon]]
@@ -335,10 +331,9 @@ async def update_annotation(
             
             # Update modified timestamp
             feature["properties"]["modified"] = datetime.now().isoformat()
-        
-        # Save updated annotation
+          # Save updated annotation
         with open(annotation.file_path, "w") as f:
-            json.dump(geojson_data, f, indent=2)
+            json.dump(json_data, f, indent=2)
         
         return AnnotationResponse(
             success=True,
