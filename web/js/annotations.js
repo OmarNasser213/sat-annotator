@@ -177,10 +177,9 @@ class AnnotationManager {
                         // Extract label from properties
                         if (feature.properties) {
                             label = feature.properties.label || feature.properties.class_name || 'Unlabeled';
-                            type = feature.properties.type || 'polygon';
-                        }
+                            type = feature.properties.type || 'polygon';                        }
                         
-                        // Extract polygon coordinates from GeoJSON
+                        // Extract polygon coordinates from JSON
                         if (feature.geometry && feature.geometry.type === 'Polygon') {
                             const coordinates = feature.geometry.coordinates[0]; // First ring of polygon
                             polygon = coordinates.map(coord => [coord[0], coord[1]]);
