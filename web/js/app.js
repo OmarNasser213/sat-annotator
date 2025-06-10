@@ -432,43 +432,147 @@ class SATAnnotator {
         
         try {
             // Show loading for multiple uploads
-            Utils.showLoading(`Uploading ${validFiles.length} image${validFiles.length > 1 ? 's' : ''}...`);
-            
-            // Upload files one by one to preserve selection order
+            Utils.showLoading(`Uploading ${validFiles.length} image${validFiles.length > 1 ? 's' : ''}...`);            // Upload files one by one to preserve selection order
             for (let i = 0; i < validFiles.length; i++) {
                 const file = validFiles[i];
                 try {
                     console.log(`Starting file upload ${i + 1}/${validFiles.length} for:`, file.name);
+                    
+                    // Start with progress bar for upload
+                    Utils.showProgressBar(0, `Uploading ${file.name}...`);
+                    
                     const imageData = await api.uploadImage(file, (progress) => {
+                        // Show upload progress (0-90% to leave room for transition)
+                        const uploadProgress = Math.min(progress * 0.9, 90);
+                        Utils.showProgressBar(uploadProgress, `Uploading ${file.name}... ${Math.round(progress)}%`);
                         console.log(`Upload progress for ${file.name}: ${progress.toFixed(1)}%`);
                     }, false); // Don't show individual loading for multiple uploads
                     
                     console.log(`Upload ${i + 1}/${validFiles.length} completed:`, imageData);
+                    
+                    // Show upload completed
+                    Utils.showProgressBar(95, `Upload complete, preparing segmentation...`);
+                    
                     // Add to images list
                     this.images.push(imageData);
-                    
                     // Mark as having unsaved work
                     this.hasUnsavedWork = true;
-                    
                     successfulUploads.push(imageData);
+
+                    // Transition to segmentation phase
+                    Utils.showProgressBar(100, `Preparing ${file.name} for annotation...`);
+
+                    // --- WebSocket for embedding progress ---
+                    // Get session id from cookie or API endpoint
+                    let sessionId = null;
+                    
+                    // First try to get from cookies
+                    const cookies = document.cookie.split(';');
+                    console.log('All cookies:', document.cookie);
+                    for (const cookie of cookies) {
+                        const [key, value] = cookie.trim().split('=');
+                        console.log(`Cookie: ${key} = ${value}`);
+                        if (key === 'sat_annotator_session') {
+                            sessionId = value;
+                            console.log('Found session ID in cookies:', sessionId);
+                            break;
+                        }
+                    }
+                    
+                    // If no session ID in cookies, get it from the API
+                    if (!sessionId) {
+                        console.log('No session ID in cookies, getting from API...');
+                        try {
+                            const sessionResponse = await api.get('/api/session-id/');
+                            sessionId = sessionResponse.session_id;
+                            console.log('Got session ID from API:', sessionId);
+                        } catch (e) {
+                            console.error('Could not get session ID from API:', e);
+                        }
+                    }
+                    
+                    if (sessionId) {
+                        const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                        const wsUrl = `${wsProtocol}://${window.location.host}/api/ws/notify/${sessionId}`;
+                        
+                        try {
+                            const ws = new WebSocket(wsUrl);
+                            
+                            // Add timeout in case WebSocket never responds
+                            const segmentationTimeout = setTimeout(() => {
+                                Utils.showProgressBar(100, 'Segmentation timeout - continuing...');
+                                setTimeout(() => {
+                                    Utils.hideProgressBar();
+                                }, 2000);
+                                ws.close();
+                            }, 30000); // 30 second timeout
+                            
+                            ws.onopen = () => {
+                                console.log('WebSocket connected for segmentation progress');
+                            };                            ws.onmessage = (event) => {
+                                clearTimeout(segmentationTimeout);
+                                console.log('WebSocket message received:', event.data);
+                                if (event.data.includes('Image ready for annotation')) {
+                                    Utils.showProgressBar(100, 'Ready for annotation! ✓');
+                                    setTimeout(() => {
+                                        Utils.hideProgressBar();
+                                    }, 1500); // Show completion message for 1.5 seconds
+                                    Utils.showToast('Image ready for annotation!', 'success');
+                                    ws.close();
+                                }
+                            };
+                            
+                            ws.onerror = (event) => {
+                                clearTimeout(segmentationTimeout);
+                                console.error('WebSocket error:', event);
+                                Utils.showProgressBar(100, 'Connection error');
+                                setTimeout(() => {
+                                    Utils.hideProgressBar();
+                                }, 2000);
+                                Utils.showToast('WebSocket error during segmentation progress.', 'error');
+                            };
+                            
+                            ws.onclose = () => {
+                                console.log('WebSocket connection closed');
+                            };
+                            
+                        } catch (wsError) {
+                            console.error('WebSocket creation failed:', wsError);
+                            Utils.showProgressBar(100, 'WebSocket failed');
+                            setTimeout(() => {
+                                Utils.hideProgressBar();
+                            }, 2000);
+                        }
+                    } else {
+                        // No session ID found, hide progress bar
+                        console.warn('No session ID found for WebSocket connection');
+                        Utils.showProgressBar(100, 'Session error');
+                        setTimeout(() => {
+                            Utils.hideProgressBar();
+                        }, 2000);
+                    }
+                    // --- End WebSocket ---
+                    
                 } catch (error) {
                     console.error(`Upload failed for ${file.name}:`, error);
+                    Utils.showProgressBar(0, `Upload failed: ${error.message}`);
+                    setTimeout(() => {
+                        Utils.hideProgressBar();
+                    }, 3000);
                     Utils.showToast(`Upload failed for ${file.name}: ${error.message}`, 'error');
                 }
             }
-              Utils.hideLoading();
-            
+            // Do not hide the progress bar here; it will be hidden after segmentation is complete.
             // Reload images from server to get updated list
             await this.loadImages();
-              // Show success message
-            if (successfulUploads.length > 0) {                Utils.showToast(`Successfully uploaded ${successfulUploads.length} image${successfulUploads.length > 1 ? 's' : ''}`, 'success');
-                
+            // Show success message
+            if (successfulUploads.length > 0) {
+                Utils.showToast(`Successfully uploaded ${successfulUploads.length} image${successfulUploads.length > 1 ? 's' : ''}`, 'success');
                 // Select the first image from the newly uploaded ones
                 // Since images are now sorted by creation time, the first uploaded image will be first
                 if (this.images.length > 0) {
                     const uploadedImageIds = successfulUploads.map(img => img.image_id);
                     const firstUploadedImage = this.images.find(img => uploadedImageIds.includes(img.image_id));
-                    
                     if (firstUploadedImage) {
                         console.log('Selecting first uploaded image with ID:', firstUploadedImage.image_id);
                         await this.selectImage(firstUploadedImage.image_id);

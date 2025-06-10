@@ -469,6 +469,27 @@ class Utils {
         notification.timeoutId = setTimeout(() => {
             notification.style.opacity = '0';
         }, duration);
+    }    // Show progress bar
+    static showProgressBar(percent, text = '') {
+        const container = document.getElementById('progressBarContainer');
+        const bar = document.getElementById('progressBar');
+        const label = document.getElementById('progressBarText');
+        
+        if (container && bar) {
+            container.classList.add('show');
+            bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+            if (label) label.textContent = text;
+            console.log(`Progress bar shown: ${percent}% - ${text}`);
+        }
+    }
+    
+    // Hide progress bar
+    static hideProgressBar() {
+        const container = document.getElementById('progressBarContainer');
+        if (container) {
+            container.classList.remove('show');
+            console.log('Progress bar hidden');
+        }
     }
 }
 

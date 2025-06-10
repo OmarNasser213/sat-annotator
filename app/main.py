@@ -79,6 +79,13 @@ def health_check():
 app.include_router(session_images.router, prefix="/api", tags=["images"])
 app.include_router(session_segmentation.router, prefix="/api", tags=["segmentation"])
 
+try:
+    from app.websocket_notify import router as websocket_notify_router
+except ImportError:
+    from websocket_notify import router as websocket_notify_router
+
+app.include_router(websocket_notify_router, prefix="/api", tags=["websocket"])
+
 # Mount the uploads directory for static file serving
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
