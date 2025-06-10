@@ -553,19 +553,37 @@ class CanvasManager {
     }    handleMouseDown(e) {
         const pos = Utils.getMousePos(this.canvas, e);
         this.lastMousePos = pos;
-        
+
         console.log('=== MOUSE DOWN EVENT ===');
         console.log('Position:', pos);
         console.log('Current tool:', this.currentTool);
         console.log('Edit mode active:', this.editModeActive);
         console.log('Is editing polygon:', this.isEditingPolygon);
         console.log('Editing annotation ID:', this.editingAnnotationId);
-        
+
+        // --- FIX: Always check for vertex under mouse in edit mode ---
+        if (
+            e.button === 0 &&
+            this.editModeActive &&
+            this.isEditingPolygon &&
+            this.editingAnnotationId
+        ) {
+            const annotation = window.annotationManager.annotations.find(ann => ann.id === this.editingAnnotationId);
+            if (annotation) {
+                const vertexInfo = this.getVertexAtPoint(pos, annotation);
+                if (vertexInfo) {
+                    this.startVertexDrag(vertexInfo);
+                    return; // Don't proceed with normal action
+                }
+            }
+        }
+
         if (e.button === 0) { // Left click
             this.handlePrimaryAction(pos, e);
         } else if (e.button === 2) { // Right click
             this.handleSecondaryAction(pos, e);
-        }    }    handleMouseMove(e) {
+        }
+    }    handleMouseMove(e) {
         const pos = Utils.getMousePos(this.canvas, e);
         this.updateMouseCoordinates(pos);
         
