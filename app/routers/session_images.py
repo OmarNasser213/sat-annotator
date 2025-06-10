@@ -1,16 +1,93 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Response, Request, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Response, Request, status, BackgroundTasks
 from app.utils.image_processing import save_upload_file, validate_image_file
 from app.schemas.session_schemas import UploadResponse, Image, ImageCreate
 from app.storage.session_manager import get_session_manager, SessionManager
 from app.storage.session_store import session_store
 from typing import List, Optional
+from app.websocket_notify import manager as ws_manager
+from app.routers.session_segmentation import segmenter
 import os
+import logging
+import asyncio
+import threading
+import time
 
 router = APIRouter()
+
+def run_background_segmentation(session_id: str, image_id: str):
+    """
+    Run segmentation for the uploaded image in a background thread, save mask/polygon, and notify frontend.
+    """
+    from app.routers.session_segmentation import segmenter
+    from app.storage.session_store import session_store
+    import numpy as np
+    import logging
+    import asyncio
+    import os
+    from pathlib import Path
+    import cv2
+    try:
+        image = session_store.get_image(session_id, image_id)
+        if not image:
+            logging.error(f"No image found for segmentation: {image_id}")
+            return
+        # Get image path logic (copied from segmentation endpoint)
+        in_docker = os.path.exists('/.dockerenv')
+        if in_docker:
+            base_dir = "/app"
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        stored_path = image.file_path
+        if in_docker:
+            if stored_path.startswith("uploads/"):
+                image_path = f"/app/{stored_path}"
+            else:
+                image_path = f"/app/uploads/{os.path.basename(stored_path)}"
+        else:
+            if stored_path.startswith("uploads/"):
+                image_path = os.path.join(base_dir, stored_path)
+            else:
+                image_path = stored_path
+        if not os.path.exists(image_path):
+            logging.error(f"Image file not found at {image_path}")
+            return
+        # Set image and get dimensions
+        height, width = segmenter.set_image(image_path)
+        # Use center point for auto-segmentation
+        pixel_x = width // 2
+        pixel_y = height // 2
+        mask = segmenter.predict_from_point([pixel_x, pixel_y])
+        # Save mask and overlay (copied from segmentation endpoint)
+        annotation_dir = Path(base_dir) / "annotations"
+        annotation_dir.mkdir(exist_ok=True)
+        mask_image_path = annotation_dir / f"mask_{session_id}_{image_id}.png"
+        cv2.imwrite(str(mask_image_path), mask)
+        original_image = cv2.imread(image_path)
+        mask_colored = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(original_image, 0.7, mask_colored, 0.3, 0)
+        overlay_path = annotation_dir / f"overlay_{session_id}_{image_id}.png"
+        cv2.imwrite(str(overlay_path), overlay)
+        polygon = segmenter.mask_to_polygon(mask)
+        # Save annotation in session store (auto_generated=True)
+        session_store.add_annotation(session_id, image_id, str(mask_image_path), auto_generated=True)
+        # Notify frontend via WebSocket
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(ws_manager.send_message(session_id, "Image ready for annotation"))
+        loop.close()
+        logging.info(f"Background segmentation notification sent for session {session_id}")
+    except Exception as e:
+        logging.error(f"Background segmentation failed for session {session_id}: {e}")
+
+def notify_segmentation_ready(session_id: str, image_id: str):
+    thread = threading.Thread(target=run_background_segmentation, args=(session_id, image_id))
+    thread.daemon = True
+    thread.start()
 
 @router.post("/upload-image/", response_model=UploadResponse)
 async def upload_image(
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     session_manager: SessionManager = Depends(get_session_manager)
 ):
     """
@@ -55,10 +132,12 @@ async def upload_image(
             capture_date=session_image.capture_date,
             created_at=session_image.created_at
         )
-        
+        # Trigger segmentation in the background (center point)
+        notify_segmentation_ready(session_id, image.image_id)
+
         return UploadResponse(
             success=True,
-            message="File uploaded successfully",
+            message="File uploaded successfully. Segmentation will be performed in the background.",
             image=image
         )
         
@@ -200,3 +279,10 @@ def export_session(
     }
     
     return export_data
+
+@router.get("/session-id/")
+def get_session_id_endpoint(
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    """Get the current session ID for WebSocket connections"""
+    return {"session_id": session_manager.session_id}

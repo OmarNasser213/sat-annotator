@@ -49,8 +49,7 @@ class SessionManager:
         self.request = request
         self.response = response
         self._session_id: Optional[str] = None
-    
-    @property
+      @property
     def session_id(self) -> str:
         """Get or initialize the session ID"""
         if self._session_id is None:
