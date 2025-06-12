@@ -132,7 +132,8 @@ sat-annotator/
 │   └── ci.yml                    # GitHub Actions pipeline
 ├── app/                          # Backend application
 │   ├── main.py                   # FastAPI application entry point
-│   ├── requirements.txt          # Python dependencies
+│   ├── requirements.txt          # Python dependencies (CUDA version for local dev)
+│   ├── requirements-ci.txt       # Python dependencies (CPU version for CI/testing)
 │   ├── routers/                  # API route handlers
 │   │   ├── session_images.py     # Image upload, retrieval, management
 │   │   └── session_segmentation.py # AI segmentation and annotations
