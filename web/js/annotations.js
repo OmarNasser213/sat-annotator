@@ -2,32 +2,18 @@
 
 class AnnotationManager {
     constructor() {
-        console.log('AnnotationManager: Starting constructor...');
         this.annotations = [];
         this.selectedAnnotation = null;
         this.currentImageId = null;
         this.currentLabel = 'building'; // Default label
         this.customLabels = []; // Store custom labels added by user
         
-        console.log('AnnotationManager: Basic properties set');
-        
         try {
-            console.log('AnnotationManager: Setting up event listeners...');
             this.setupEventListeners();
-            console.log('AnnotationManager: Event listeners setup complete');
-        } catch (error) {
-            console.error('AnnotationManager: Event listeners setup failed:', error);
-        }
-        
-        try {
-            console.log('AnnotationManager: Updating UI...');
             this.updateUI();
-            console.log('AnnotationManager: UI update complete');
         } catch (error) {
-            console.error('AnnotationManager: UI update failed:', error);
+            console.error('AnnotationManager: Initialization failed:', error);
         }
-        
-        console.log('AnnotationManager: Constructor complete');
     }setupEventListeners() {
         // Set up label selection events with event delegation for dynamic buttons
         document.getElementById('labelList').addEventListener('click', (e) => {
@@ -52,25 +38,43 @@ class AnnotationManager {
         // Hide context menu when clicking elsewhere
         document.addEventListener('click', () => this.hideContextMenu());
     }    async setCurrentImage(imageId) {
+        console.log(`🔍 setCurrentImage called with: ${imageId}`);
+        console.log(`🔍 Previous currentImageId: ${this.currentImageId}`);
+        
         // Save any existing annotations for the current image before switching
         if (this.currentImageId && this.annotations.length > 0) {
-            console.log(`Saving ${this.annotations.length} annotations for image ${this.currentImageId} before switching`);
             try {
                 await Promise.all(
                     this.annotations.map(ann => this.saveAnnotation(ann.id))
                 );
-                console.log('All annotations saved successfully');
             } catch (error) {
                 console.error('Failed to save some annotations before switching images:', error);
             }
         }
         
         this.currentImageId = imageId;
+        console.log(`🔍 currentImageId set to: ${this.currentImageId}`);
         this.annotations = [];
         this.selectedAnnotation = null;
         this.updateUI();
           // Load existing annotations for this image
         await this.loadAnnotations(imageId);
+          // Clear any cached canvas polygons to force recalculation for new image
+        this.annotations.forEach(annotation => {
+            annotation.canvasPolygon = null;
+            annotation.lastScale = null;
+            annotation.lastOffsetX = null;
+            annotation.lastOffsetY = null;
+            annotation.lastImageId = null;
+        });
+        
+        // Force a redraw to ensure annotations are visible immediately
+        if (window.canvasManager && window.canvasManager.imageElement) {
+            // Multiple redraws with short delays to ensure annotations appear
+            setTimeout(() => window.canvasManager.redraw(), 10);
+            setTimeout(() => window.canvasManager.redraw(), 100);
+            setTimeout(() => window.canvasManager.redraw(), 200);
+        }
     }
 
     selectLabel(label) {
@@ -159,7 +163,6 @@ class AnnotationManager {
     }    async loadAnnotations(imageId) {
         try {
             const annotations = await api.getAnnotations(imageId);
-            console.log('Raw annotations from API:', annotations);
             
             this.annotations = annotations.map((ann, index) => {
                 // Parse polygon from backend format
@@ -167,12 +170,9 @@ class AnnotationManager {
                 let label = 'Unlabeled';
                 let type = 'unknown';
                 
-                console.log(`Processing annotation ${index}:`, ann);
-                
                 try {
                     if (ann.data && ann.data.features && ann.data.features.length > 0) {
                         const feature = ann.data.features[0];
-                        console.log(`  Feature found:`, feature);
                         
                         // Extract label from properties
                         if (feature.properties) {
@@ -183,12 +183,7 @@ class AnnotationManager {
                         if (feature.geometry && feature.geometry.type === 'Polygon') {
                             const coordinates = feature.geometry.coordinates[0]; // First ring of polygon
                             polygon = coordinates.map(coord => [coord[0], coord[1]]);
-                            console.log(`  Parsed polygon for annotation ${ann.annotation_id}: ${polygon.length} points, sample:`, polygon.slice(0, 3));
-                        } else {
-                            console.log(`  No valid geometry found for annotation ${ann.annotation_id}:`, feature.geometry);
                         }
-                    } else {
-                        console.log(`  No valid data structure for annotation ${ann.annotation_id}:`, ann.data);
                     }
                 } catch (parseError) {
                     console.error('Error parsing annotation data:', parseError, ann);
@@ -737,28 +732,38 @@ class AnnotationManager {
         document.body.removeChild(downloadLink);
         URL.revokeObjectURL(url);
     }
-    
-    drawAnnotations(ctx, scale, offsetX, offsetY) {
-        console.log(`drawAnnotations called with ${this.annotations.length} annotations, scale: ${scale.toFixed(3)}, offset: ${offsetX.toFixed(1)},${offsetY.toFixed(1)}`);
+      drawAnnotations(ctx, scale, offsetX, offsetY) {
+        // Removed excessive logging for performance
         
         // Note: Canvas context is already DPR-scaled by canvas manager
         // so we should NOT divide by DPR again
-        
-        this.annotations.forEach((annotation, index) => {
+          this.annotations.forEach((annotation, index) => {
             if (!annotation.polygon || annotation.polygon.length < 3) {
-                console.log(`Annotation ${index} skipped: invalid polygon`);
                 return;
             }
-              console.log(`Drawing annotation ${index}: ${annotation.polygon.length} points, source: ${annotation.source}`);
             
-            // Quick validation that polygon coordinates are in normalized range (0-1)
-            const isNormalized = annotation.polygon.slice(0, 3).every(point => 
-                point[0] >= 0 && point[0] <= 1 && point[1] >= 0 && point[1] <= 1
-            );
-            
-            if (!isNormalized) {
-                console.warn(`Annotation ${index} has non-normalized coordinates`);
-            }            // Convert image coordinates to canvas coordinates
+            // Safety check: ensure we have the correct image loaded
+            if (!window.canvasManager.imageElement || !window.canvasManager.currentImage) {
+                return;
+            }            // Critical fix: ensure annotations are only drawn for the current image
+            console.log(`🔍 Checking image match - currentImageId: ${this.currentImageId}, canvas image: ${window.canvasManager.currentImage?.image_id}`);
+            if (window.canvasManager.currentImage.image_id !== this.currentImageId) {
+                console.warn(`Canvas image mismatch: expected ${this.currentImageId}, got ${window.canvasManager.currentImage.image_id}. Synchronizing...`);
+                // CRITICAL FIX: Prevent infinite sync loops - only sync once
+                if (this.currentImageId !== null && !this._syncInProgress) {
+                    this._syncInProgress = true;
+                    setTimeout(() => {
+                        this.setCurrentImage(window.canvasManager.currentImage.image_id);
+                        this._syncInProgress = false;
+                    }, 0);
+                    return;
+                } else {
+                    // If currentImageId is null or sync in progress, just set it without reloading annotations
+                    console.log('🔧 Setting currentImageId without reloading annotations');
+                    this.currentImageId = window.canvasManager.currentImage.image_id;
+                }
+            }
+              // Convert image coordinates to canvas coordinates
             const canvasPolygon = annotation.polygon.map(point => 
                 Utils.imageToCanvasCoords(
                     point[0], point[1],
@@ -770,7 +775,7 @@ class AnnotationManager {
                 )
             );
             
-            // Quick bounds and visibility check
+            // Quick visibility check to skip offscreen annotations
             const bounds = {
                 minX: Math.min(...canvasPolygon.map(p => p.x)),
                 maxX: Math.max(...canvasPolygon.map(p => p.x)),
@@ -779,23 +784,33 @@ class AnnotationManager {
             };
             
             const canvasBounds = window.canvasManager.getDisplayDimensions();
-            const isVisible = bounds.maxX >= 0 && bounds.minX <= canvasBounds.width && 
-                             bounds.maxY >= 0 && bounds.minY <= canvasBounds.height;
+            const isVisible = bounds.maxX >= -50 && bounds.minX <= canvasBounds.width + 50 && 
+                             bounds.maxY >= -50 && bounds.minY <= canvasBounds.height + 50;
             
-            console.log(`Annotation ${index}: ${isVisible ? 'VISIBLE' : 'OUTSIDE'} (${bounds.minX.toFixed(0)}-${bounds.maxX.toFixed(0)}, ${bounds.minY.toFixed(0)}-${bounds.maxY.toFixed(0)})`);
-              // Only update canvas polygon if it has actually changed and we're not dragging
+            if (!isVisible) return; // Skip offscreen annotations            // Only update canvas polygon if it has actually changed and we're not dragging
+            // Force recalculation if canvasPolygon is null (e.g., after image switch)
+            // Also recalculate if the current image has changed
+            const imageId = window.canvasManager.currentImage ? window.canvasManager.currentImage.image_id : null;
+            const imageChanged = annotation.lastImageId !== imageId;
+            
             if (!annotation.isDragging && 
                 (!annotation.canvasPolygon || 
                 annotation.lastScale !== scale || 
                 annotation.lastOffsetX !== offsetX || 
-                annotation.lastOffsetY !== offsetY)) {
+                annotation.lastOffsetY !== offsetY ||
+                imageChanged)) {
                 annotation.canvasPolygon = canvasPolygon;
                 annotation.lastScale = scale;
                 annotation.lastOffsetX = offsetX;
                 annotation.lastOffsetY = offsetY;
+                annotation.lastImageId = imageId;
             } else if (!annotation.isDragging && !annotation.canvasPolygon) {
                 // Ensure we have a canvas polygon even if not dragging
                 annotation.canvasPolygon = canvasPolygon;
+                annotation.lastScale = scale;
+                annotation.lastOffsetX = offsetX;
+                annotation.lastOffsetY = offsetY;
+                annotation.lastImageId = imageId;
             }
               // Determine colors based on selection and source
             let strokeColor = annotation.source === 'ai' ? '#10b981' : '#3b82f6';
@@ -817,11 +832,10 @@ class AnnotationManager {
                     lineWidth = 3;
                     dashPattern = [5, 5]; // Dashed line for edit mode
                 }
-            }// Draw polygon fill (temporary fix - no DPR division)
+            }// Draw polygon fill (optimized - no excessive logging)
             ctx.save();
             ctx.fillStyle = fillColor;
             ctx.beginPath();
-            console.log(`Drawing annotation ${index}: fill at first point (${canvasPolygon[0].x}, ${canvasPolygon[0].y}) with color ${fillColor}`);
             canvasPolygon.forEach((point, index) => {
                 if (index === 0) {
                     ctx.moveTo(point.x, point.y);
@@ -832,8 +846,7 @@ class AnnotationManager {
             ctx.closePath();
             ctx.fill();
             ctx.restore();
-            console.log(`Fill completed for annotation ${index}`);
-              // Draw polygon outline (temporary fix - no DPR division)
+              // Draw polygon outline (optimized - no excessive logging)
             ctx.save();
             ctx.strokeStyle = strokeColor;
             ctx.lineWidth = lineWidth;
@@ -844,7 +857,6 @@ class AnnotationManager {
             }
             
             ctx.beginPath();
-            console.log(`Drawing annotation ${index}: stroke with color ${strokeColor}`);
             canvasPolygon.forEach((point, index) => {
                 if (index === 0) {
                     ctx.moveTo(point.x, point.y);
@@ -855,7 +867,6 @@ class AnnotationManager {
             ctx.closePath();
             ctx.stroke();
             ctx.restore();
-            console.log(`Stroke completed for annotation ${index}`);
               // Draw vertices
             canvasPolygon.forEach(point => {
                 ctx.save();
