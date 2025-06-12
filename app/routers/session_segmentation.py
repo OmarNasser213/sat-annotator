@@ -18,7 +18,7 @@ log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
 log_filename = f"debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,  # Changed from DEBUG to INFO
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(log_dir / log_filename),
@@ -30,6 +30,30 @@ logger = logging.getLogger("segmentation_router")
 router = APIRouter()
 segmenter = SAMSegmenter()
 
+def construct_image_path(stored_path):
+    """Construct consistent image path for both preprocessing and segmentation"""
+    # Determine if running in Docker
+    in_docker = os.path.exists('/.dockerenv')
+    
+    if not os.path.isabs(stored_path):
+        if in_docker:
+            # Docker environment
+            if stored_path.startswith("uploads/"):
+                image_path = "/app/" + stored_path
+            else:
+                image_path = "/app/uploads/" + os.path.basename(stored_path)
+        else:
+            # Local environment
+            if stored_path.startswith("uploads/"):
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                image_path = os.path.join(base_dir, stored_path)
+            else:
+                image_path = stored_path
+    else:
+        image_path = stored_path
+    
+    return image_path
+
 class PointPrompt(BaseModel):
     image_id: str
     x: float
@@ -40,13 +64,24 @@ class SegmentationResponse(BaseModel):
     polygon: List[List[float]]
     annotation_id: Optional[str] = None
     cached: bool = False
+    processing_time: Optional[float] = None
+
+class PreprocessRequest(BaseModel):
+    image_id: str
+
+class PreprocessResponse(BaseModel):
+    success: bool
+    message: str
 
 @router.post("/segment/", response_model=SegmentationResponse)
 async def segment_from_point(
     prompt: PointPrompt,
     session_manager: SessionManager = Depends(get_session_manager)
 ):
-    """Generate segmentation from a point click, with caching for subsequent clicks on the same image."""
+    """Generate segmentation from a point click with timeout handling"""
+    import asyncio
+    import concurrent.futures
+    
     session_id = session_manager.session_id
     
     # Debug: log the received coordinates
@@ -57,6 +92,9 @@ async def segment_from_point(
         raise HTTPException(status_code=404, detail="Image not found")
     
     try:
+        import time
+        start_time = time.time()
+        
         # Determine if running in Docker
         in_docker = os.path.exists('/.dockerenv')
         
@@ -66,58 +104,67 @@ async def segment_from_point(
         else:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             annotation_dir = Path(os.path.join(base_dir, "annotations"))
-        annotation_dir.mkdir(exist_ok=True)
-        
-        # Get the image path from the session store
-        stored_path = image.file_path
-        
-        # Construct image path
-        if in_docker:
-            if stored_path.startswith("uploads/"):
-                image_path = "/app/" + stored_path
-            else:
-                image_path = "/app/uploads/" + os.path.basename(stored_path)
-        else:
-            if stored_path.startswith("uploads/"):
-                image_path = os.path.join(base_dir, stored_path)
-            else:
-                image_path = stored_path
+        annotation_dir.mkdir(exist_ok=True)        # Get the image path from the session store
+        stored_path = image.file_path        # Construct image path using unified function
+        image_path = construct_image_path(stored_path)
         
         # Check if file exists
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image file not found at {image_path}")
+            # Check if this is a new image or one we've already processed
+        is_cached = (image_path == segmenter.current_image_path and 
+                    image_path in segmenter.cache)
         
-        # Check if this is a new image or one we've already processed
-        is_cached = image_path == segmenter.current_image_path and image_path in segmenter.cache
+        logger.debug(f"Processing image: {image_path}, cached: {is_cached}, current: {segmenter.current_image_path}")
+          # Run segmentation in a thread pool with timeout
+        def run_segmentation():
+            # OPTIMIZED: Only set image if it's not already the current image
+            # This preserves the instant segmentation after preprocessing
+            if segmenter.current_image_path != image_path:
+                logger.debug(f"Setting new image in SAM: {image_path}")
+                height, width = segmenter.set_image(image_path)
+            else:
+                logger.debug(f"Using already-set image (instant segmentation!)")
+                # Get dimensions from cache instead of re-setting
+                if image_path in segmenter.cache:
+                    height, width = segmenter.cache[image_path]['image_size']
+                else:
+                    # Fallback - this shouldn't happen if preprocessing worked
+                    logger.warning(f"Image not in cache, falling back to set_image")
+                    height, width = segmenter.set_image(image_path)
+            
+            pixel_x = int(prompt.x * width)
+            pixel_y = int(prompt.y * height)
+            
+            logger.debug(f"Click at coordinates: ({pixel_x}, {pixel_y}) for image size: {width}x{height}")
+            
+            # Get mask from point (GPU accelerated)
+            mask_start = time.time()
+            mask = segmenter.predict_from_point([pixel_x, pixel_y])
+            mask_time = time.time() - mask_start
+            logger.debug(f"Mask generation time: {mask_time:.3f}s")
+            
+            # Convert mask to polygon immediately
+            polygon = segmenter.mask_to_polygon(mask)
+            
+            if not polygon:
+                raise ValueError("Could not generate polygon from mask")
+                
+            return polygon, is_cached
         
-        logger.debug(f"Processing image: {image_path}, cached: {is_cached}")
-        
-        # Set the image in the segmenter
-        height, width = segmenter.set_image(image_path)
-        pixel_x = int(prompt.x * width)
-        pixel_y = int(prompt.y * height)
-        
-        logger.debug(f"Click at coordinates: ({pixel_x}, {pixel_y}) for image size: {width}x{height}")
-        
-        # Get mask from point
-        mask = segmenter.predict_from_point([pixel_x, pixel_y])
-        
-        # Save the mask
-        mask_image_path = annotation_dir / f"mask_{session_id}_{image.image_id}.png"
-        cv2.imwrite(str(mask_image_path), mask)
-        logger.debug(f"Mask saved at {mask_image_path}")
-        
-        # Create and save overlay
-        original_image = cv2.imread(image_path)
-        mask_colored = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(original_image, 0.7, mask_colored, 0.3, 0)
-        overlay_path = annotation_dir / f"overlay_{session_id}_{image.image_id}.png"
-        cv2.imwrite(str(overlay_path), overlay)
-        logger.debug(f"Overlay saved at {overlay_path}")
-        
-        polygon = segmenter.mask_to_polygon(mask)
-        if not polygon:
-            raise HTTPException(status_code=400, detail="Could not generate polygon from mask")
+        # Execute with timeout (30 seconds)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(run_segmentation)
+            try:
+                polygon, is_cached = await asyncio.wait_for(
+                    asyncio.wrap_future(future), 
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(
+                    status_code=408, 
+                    detail="Segmentation timeout - image may still be processing..."
+                )
         
         # Save JSON
         annotation_path = annotation_dir / f"annotation_{session_id}_{image.image_id}_{len(polygon)}.json"
@@ -142,14 +189,21 @@ async def segment_from_point(
         )
         
         logger.debug(f"Generated segmentation with {len(polygon)} points, cached: {is_cached}")
+          # Calculate total processing time
+        total_processing_time = time.time() - start_time
+        logger.debug(f"Total segmentation processing time: {total_processing_time:.3f}s")
         
         return SegmentationResponse(
             success=True,
             polygon=polygon,
             annotation_id=annotation.annotation_id if annotation else None,
-            cached=is_cached
+            cached=is_cached,
+            processing_time=total_processing_time
         )
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (like timeout)
+        raise
     except Exception as e:
         logger.error(f"Error in segmentation: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -186,7 +240,11 @@ async def get_image_annotations(
             file_path = ann.file_path
             if os.path.exists(file_path):
                 with open(file_path, 'r') as f:
-                    json_data = json.load(f)
+                    json_data = json.load(f)                # DEBUG: Log what we're loading
+                if json_data.get('features') and len(json_data['features']) > 0:
+                    feature = json_data['features'][0]
+                    if feature.get('geometry', {}).get('coordinates'):
+                        coords = feature['geometry']['coordinates']
                 
                 result.append({
                     "annotation_id": ann.annotation_id,
@@ -195,6 +253,7 @@ async def get_image_annotations(
                     "data": json_data
                 })
         except Exception as e:
+            logger.error(f"Error loading annotation {ann.annotation_id}: {e}")
             continue
     
     return result
@@ -211,20 +270,8 @@ async def clear_image_cache(
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    stored_path = image.file_path
-    in_docker = os.path.exists('/.dockerenv')
-    
-    if in_docker:
-        if stored_path.startswith("uploads/"):
-            image_path = "/app/" + stored_path
-        else:
-            image_path = "/app/uploads/" + os.path.basename(stored_path)
-    else:
-        if stored_path.startswith("uploads/"):
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            image_path = os.path.join(base_dir, stored_path)
-        else:
-            image_path = stored_path
+    # Use unified path construction
+    image_path = construct_image_path(image.file_path)
     
     segmenter.clear_cache(image_path)
     
@@ -237,7 +284,8 @@ async def save_manual_annotation(
 ):
     """Save a manual annotation"""
     session_id = session_manager.session_id
-      # Verify the image exists
+    
+    # Verify the image exists
     image = session_store.get_image(session_id, annotation_data.image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -263,10 +311,9 @@ async def save_manual_annotation(
                         "type": annotation_data.type,
                         "source": annotation_data.source,
                         "created": datetime.now().isoformat()
-                    },
-                    "geometry": {
+                    },                    "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[[point[0], point[1]] for point in annotation_data.polygon]]
+                        "coordinates": [annotation_data.polygon]  # Fix: Direct polygon array, not nested
                     }
                 }
             ]
@@ -391,4 +438,54 @@ async def delete_annotation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting annotation: {str(e)}"
+        )
+
+@router.post("/preprocess/", response_model=PreprocessResponse)
+async def preprocess_image(
+    request: PreprocessRequest,
+    session_manager: SessionManager = Depends(get_session_manager)
+):
+    """Pre-generate embeddings for faster segmentation"""
+    try:
+        # Check if session exists
+        session_data = session_store.get_session(session_manager.session_id)
+        if not session_data:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Session {session_manager.session_id} not found. Please refresh the page to create a new session."
+            )
+        
+        # Get image from session
+        image = session_store.get_image(session_manager.session_id, request.image_id)
+        if not image:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Image {request.image_id} not found in session {session_manager.session_id}"
+            )        # Handle both absolute and relative paths for image_path
+        image_path = construct_image_path(image.file_path)
+        
+        # Check if file exists
+        if not os.path.exists(image_path):
+            logger.error(f"File does not exist at: {image_path}")
+            raise FileNotFoundError(f"Image file not found at {image_path}")
+            
+        success = segmenter.preprocess_image(image_path)
+        
+        if success:
+            logger.info(f"Successfully preprocessed image {request.image_id}")
+            return PreprocessResponse(
+                success=True,
+                message="Image preprocessed successfully"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to preprocess image"
+            )
+        
+    except Exception as e:
+        logger.error(f"Error preprocessing image {request.image_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error preprocessing image: {str(e)}"
         )
