@@ -39,7 +39,6 @@ class TestMainAPI(unittest.TestCase):
         @self.app.get("/health")
         def health_check():
             return {"status": "healthy"}
-        
         # Add root endpoint (when frontend is not mounted)
         @self.app.get("/")
         def read_root():
@@ -50,7 +49,7 @@ class TestMainAPI(unittest.TestCase):
         def frontend_status():
             return {
                 "status": "not_mounted", 
-                "message": "Frontend build not found. Run 'npm run build' in the web directory."
+                "message": "Frontend not mounted. Static files should be served from the web directory."
             }
         
         # Create a test client
@@ -85,7 +84,7 @@ class TestMainAPI(unittest.TestCase):
             response.json(),
             {
                 "status": "not_mounted", 
-                "message": "Frontend build not found. Run 'npm run build' in the web directory."
+                "message": "Frontend not mounted. Static files should be served from the web directory."
             }
         )
 
