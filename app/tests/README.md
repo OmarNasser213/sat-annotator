@@ -62,4 +62,4 @@ The tests use mock objects to avoid loading heavy dependencies:
 
 ## Testing in CI/CD
 
-For CI/CD, a GitHub Actions workflow is set up in `.github/workflows/tests.yml` that will run all unittest tests on each push to the main branch.
+For CI/CD, a GitHub Actions workflow is set up in `.github/workflows/ci.yml` that will run all unittest tests on each push to the main branch.
