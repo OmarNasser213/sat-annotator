@@ -101,6 +101,14 @@ pip install -r app/requirements.txt
 pip install git+https://github.com/facebookresearch/segment-anything.git
 ```
 
+   **Note on PyTorch versions:**
+   - `requirements.txt`: Contains CUDA version of PyTorch for local development with GPU acceleration
+   - `requirements-ci.txt`: Contains CPU version of PyTorch for CI/testing environments
+   - If you don't have CUDA support, install PyTorch CPU version first:
+     ```bash
+     pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https://download.pytorch.org/whl/cpu
+     ```
+
 4. Run the application:
 ```bash
 uvicorn app.main:app --reload

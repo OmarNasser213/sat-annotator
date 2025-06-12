@@ -1,0 +1,48 @@
+# Core FastAPI web framework
+fastapi==0.115.8
+uvicorn==0.34.3
+pydantic==2.10.6
+pydantic-core==2.27.2
+annotated-types==0.7.0
+python-multipart==0.0.20
+starlette==0.45.3
+
+# Image processing and AI - PyTorch CPU version for CI/testing
+# Note: torch and torchvision are installed separately in CI workflow with correct index
+opencv-python==4.11.0.86
+pillow==11.2.1
+numpy==2.0.2
+
+# PyTorch dependencies
+filelock==3.18.0
+fsspec==2025.5.1
+jinja2==3.1.6
+networkx==3.5
+sympy==1.13.1
+mpmath==1.3.0
+MarkupSafe==3.0.2
+
+# HTTP client and utilities
+requests==2.32.3
+urllib3==2.4.0
+httpcore==1.0.9
+
+# Security for session management
+python-jose==3.5.0
+cryptography==45.0.4
+cffi==1.17.1
+pycparser==2.22
+ecdsa==0.19.1
+pyasn1==0.6.1
+rsa==4.9.1
+
+# Core Python web dependencies
+click==8.1.8
+h11==0.16.0
+anyio==4.8.0
+sniffio==1.3.1
+idna==3.10
+charset-normalizer==3.4.1
+typing_extensions==4.14.0
+packaging==24.2
+certifi==2025.1.31

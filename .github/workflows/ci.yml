@@ -22,8 +22,14 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f app/requirements.txt ]; then pip install -r app/requirements.txt; fi
+        # Install PyTorch CPU version first with the correct index
+        pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https://download.pytorch.org/whl/cpu
+        # Install CI-specific requirements (CPU versions)
+        if [ -f app/requirements-ci.txt ]; then pip install -r app/requirements-ci.txt; fi
+        # Install test requirements
         if [ -f app/tests/test_requirements.txt ]; then pip install -r app/tests/test_requirements.txt; fi
+        # Install SAM model (may be needed for imports, even though tests use mocks)
+        pip install git+https://github.com/facebookresearch/segment-anything.git
     
     - name: Set test mode environment variable
       run: |
