@@ -33,7 +33,7 @@ def set_session_cookie(response: Response, session_id: str) -> None:
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        httponly=False,  # Allow JavaScript access for WebSocket connections
+        httponly=False,  # Allow JavaScript access for API calls
         samesite="lax",
         path="/"
         # No expires parameter = session cookie (cleared on browser close/reload)
