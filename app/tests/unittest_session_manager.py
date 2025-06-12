@@ -98,7 +98,7 @@ class TestSessionManager(unittest.TestCase):
         # Verify cookie was set
         self.assertIn(SESSION_COOKIE_NAME, response.cookies)
         self.assertEqual(response.cookies[SESSION_COOKIE_NAME]["value"], test_session_id)
-        self.assertFalse(response.cookies[SESSION_COOKIE_NAME]["httponly"])  # False to allow JS access for API calls
+        self.assertTrue(response.cookies[SESSION_COOKIE_NAME]["httponly"])  # True to prevent JavaScript access for enhanced security against XSS
         self.assertEqual(response.cookies[SESSION_COOKIE_NAME]["samesite"], "lax")
         self.assertEqual(response.cookies[SESSION_COOKIE_NAME]["path"], "/")
     
@@ -140,7 +140,7 @@ class TestSessionManager(unittest.TestCase):
         
         # Verify cookie was deleted
         self.assertIn(SESSION_COOKIE_NAME, response._deleted_cookies)
-        self.assertFalse(response._deleted_cookies[SESSION_COOKIE_NAME]["httponly"])  # False to match set_session_cookie
+        self.assertTrue(response._deleted_cookies[SESSION_COOKIE_NAME]["httponly"])  # True to match set_session_cookie
         self.assertEqual(response._deleted_cookies[SESSION_COOKIE_NAME]["path"], "/")
 
 if __name__ == "__main__":

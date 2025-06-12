@@ -33,7 +33,7 @@ def set_session_cookie(response: Response, session_id: str) -> None:
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        httponly=False,  # Allow JavaScript access for API calls
+        httponly=True,  # Prevent JavaScript access for enhanced security against XSS
         samesite="lax",
         path="/"
         # No expires parameter = session cookie (cleared on browser close/reload)
@@ -58,14 +58,13 @@ class SessionManager:
             if not self._session_id:
                 self._session_id = generate_session_id()
                 set_session_cookie(self.response, self._session_id)
-                
         return self._session_id
     
     def clear_session(self) -> None:
         """Remove the session cookie"""
         self.response.delete_cookie(
             key=SESSION_COOKIE_NAME,
-            httponly=False,  # Match the httponly setting from set_session_cookie
+            httponly=True,  # Match the httponly setting from set_session_cookie
             path="/"
         )
 
