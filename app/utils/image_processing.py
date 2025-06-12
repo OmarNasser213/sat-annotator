@@ -1,8 +1,12 @@
 import os
 import uuid
+import logging
 from pathlib import Path
 from fastapi import UploadFile
 from PIL import Image
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Determine if we're running in Docker or locally
 in_docker = os.path.exists('/.dockerenv')
@@ -49,13 +53,12 @@ async def save_upload_file(file: UploadFile) -> dict:
                 
                 # Remove the temporary TIFF file
                 os.remove(temp_file_path)
-                
-                # Use the PNG file as the final file
+                  # Use the PNG file as the final file
                 final_file_path = png_file_path
                 final_filename = png_filename
         except Exception as e:
             # If conversion fails, keep the original TIFF file
-            print(f"Warning: Failed to convert TIFF to PNG: {e}")
+            logger.warning(f"Failed to convert TIFF to PNG: {e}")
     
     # Get image dimensions and resolution
     resolution = None
