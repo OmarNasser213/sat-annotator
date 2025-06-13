@@ -19,31 +19,21 @@ if app_dir not in sys.path:
 try:
     # For uvicorn from root directory
     from app.routers import session_images, session_segmentation
-    print("Using app.routers imports")
+    logger.info("Using app.routers imports")
 except ImportError:
     try:
         # For running directly from app directory
         from routers import session_images, session_segmentation
-        print("Using direct routers imports")
+        logger.info("Using direct routers imports")
     except ImportError as e:
-        print(f"Import error: {e}")
+        logger.error(f"Import error: {e}")
         # Final fallback - try with explicit path manipulation
         sys.path.insert(0, os.path.dirname(app_dir))
         from app.routers import session_images, session_segmentation
-        print("Using fallback app.routers imports")
-
-try:
-    from app.utils.test_utils import is_test_mode
-    test_mode = is_test_mode()
-except ImportError:
-    try:
-        from utils.test_utils import is_test_mode
-        test_mode = is_test_mode()
-    except ImportError:
-        test_mode = False
+        logger.info("Using fallback app.routers imports")
 
 # Determine if we're running in Docker or locally
-in_docker = os.path.exists('/.dockerenv') and not test_mode
+in_docker = os.path.exists('/.dockerenv')
 
 # Set paths based on environment
 base_path = Path("/app") if in_docker else Path(".")
@@ -78,13 +68,6 @@ def health_check():
 # Include session-based routers
 app.include_router(session_images.router, prefix="/api", tags=["images"])
 app.include_router(session_segmentation.router, prefix="/api", tags=["segmentation"])
-
-try:
-    from app.websocket_notify import router as websocket_notify_router
-except ImportError:
-    from websocket_notify import router as websocket_notify_router
-
-app.include_router(websocket_notify_router, prefix="/api", tags=["websocket"])
 
 # Mount the uploads directory for static file serving
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")

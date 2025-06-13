@@ -58,7 +58,6 @@ def main():
                 text=True,
                 timeout=30  # Add timeout to catch hanging tests
             )
-            
             # Print output
             if result.stdout:
                 print(result.stdout)
@@ -70,58 +69,66 @@ def main():
                 print(result.stderr)
             
             # Determine test status
-            if "OK" in result.stdout:
-                status = "✅ PASS"
-            elif "FAILED" in result.stdout:
-                status = "❌ FAIL"
+            stdout_content = result.stdout or ""
+            stderr_content = result.stderr or ""
+            
+            if "OK" in stdout_content:
+                status = "PASS"
+            elif "FAILED" in stdout_content or "ERROR" in stdout_content:
+                status = "FAIL"
             else:
-                status = "⚠️ UNKNOWN"
+                status = "UNKNOWN"
                 
         except subprocess.TimeoutExpired:
             print("ERROR: Test timed out after 30 seconds")
-            status = "❌ TIMEOUT"
+            status = "TIMEOUT"
             errors += 1
             result = None
-            
-        # Extract test counts if we have results
+              # Extract test counts if we have results
         if result:
             try:
                 test_count = 0
                 fail_count = 0
-                error_count = 0                # Process test counts with multiple approaches for reliability
+                error_count = 0
+                
+                # Get safe content to work with
+                stdout_content = result.stdout or ""
+                stderr_content = result.stderr or ""
+                
+                # Process test counts with multiple approaches for reliability
                 
                 # First check for explicit "Ran X tests" in stdout (standard unittest output)
-                ran_match = re.search(r'Ran (\d+) test', result.stdout)
+                ran_match = re.search(r'Ran (\d+) test', stdout_content)
                 if ran_match:
                     test_count = int(ran_match.group(1))
                 # Also check output for "Tests run: X" (our custom output)
                 else:
-                    tests_run_match = re.search(r'Tests run: (\d+)', result.stdout)
+                    tests_run_match = re.search(r'Tests run: (\d+)', stdout_content)
                     if tests_run_match:
                         test_count = int(tests_run_match.group(1))
                     else:
                         # Count lines ending with "... ok" which typically appear for each test
-                        ok_matches = re.findall(r'\.+ ok$', result.stdout, re.MULTILINE)
+                        ok_matches = re.findall(r'\.+ ok$', stdout_content, re.MULTILINE)
                         if ok_matches:
                             test_count = len(ok_matches)
                         else:
                             # Look for pattern "test_name (...) ... ok"
-                            test_ok_matches = re.findall(r'test_\w+\s+\([^)]+\).*ok', result.stdout)
+                            test_ok_matches = re.findall(r'test_\w+\s+\([^)]+\).*ok', stdout_content)
                             if test_ok_matches:
                                 test_count = len(test_ok_matches)
                             else:
                                 # Look for test_* methods in output as last resort
-                                method_matches = re.findall(r'test_\w+', result.stdout)
+                                method_matches = re.findall(r'test_\w+', stdout_content)
                                 if method_matches:
                                     test_count = len(set(method_matches))  # Use set to remove duplicates
                 
                 # Check for failures
-                fail_matches = re.search(r'[Ff]ailures[=:]?\s*(\d+)', result.stdout)
+                fail_matches = re.search(r'[Ff]ailures[=:]?\s*(\d+)', stdout_content)
                 if fail_matches:
                     fail_count = int(fail_matches.group(1))
                 
                 # Check for errors
-                error_matches = re.search(r'[Ee]rrors[=:]?\s*(\d+)', result.stdout)
+                error_matches = re.search(r'[Ee]rrors[=:]?\s*(\d+)', stdout_content)
                 if error_matches:
                     error_count = int(error_matches.group(1))
                 
@@ -138,10 +145,10 @@ def main():
             except Exception as e:
                 print(f"Error parsing test results: {e}")
                 # Still add the file to results with unknown status
-                results.append((test_file, "⚠️ ERROR", 0))
+                results.append((test_file, "ERROR", 0))
         else:
             # Add the timed out file
-            results.append((test_file, "❌ TIMEOUT", 0))
+            results.append((test_file, "TIMEOUT", 0))
     
     # Print summary
     print("\n\n===== TEST SUMMARY =====")
@@ -156,11 +163,11 @@ def main():
     
     # Overall status
     if all_tests == 0:
-        print("\n⚠️ WARNING: No test results were detected!")
+        print("\nWARNING: No test results were detected!")
     elif failures == 0 and errors == 0:
-        print(f"\n✅ ALL {all_tests} TESTS PASSED!")
+        print(f"\nALL {all_tests} TESTS PASSED!")
     else:
-        print(f"\n❌ TESTS FAILED: {failures + errors} issues found in {all_tests} tests.")
+        print(f"\nTESTS FAILED: {failures + errors} issues found in {all_tests} tests.")
     
     # Return success if all tests passed
     return 0 if failures == 0 and errors == 0 else 1

@@ -6,9 +6,7 @@ class API {
         const isDevelopment = window.location.port === '8080' || window.location.port === '3000';
         this.baseURL = isDevelopment ? 'http://localhost:8000' : window.location.origin;
         this.sessionId = null;
-    }
-
-    // Generic request method
+    }    // Generic request method with timeout support
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
         const defaultOptions = {
@@ -26,8 +24,17 @@ class API {
             },
         };
 
+        // Add timeout for segmentation requests
+        const isSegmentationRequest = endpoint.includes('/segment/');
+        const timeoutMs = isSegmentationRequest ? 35000 : 10000; // 35s for segmentation, 10s for others
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        requestOptions.signal = controller.signal;
+
         try {
             const response = await fetch(url, requestOptions);
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -41,10 +48,14 @@ class API {
                 return response;
             }
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Request timeout - please try again');
+            }
             console.error('API request failed:', error);
             throw error;
         }
-    }    
+    }
 
     // Clear current session and start fresh
     async clearSession() {
@@ -64,6 +75,53 @@ class API {
             // Even if backend call fails, clear the cookie
             document.cookie = `sat_annotator_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
             this.sessionId = null;
+        }
+    }
+
+    // Validate session exists on server
+    async validateSession(sessionId) {
+        try {
+            const response = await this.get(`/api/validate-session/${sessionId}/`);
+            return response.valid;
+        } catch (error) {
+            console.warn(`Failed to validate session ${sessionId}:`, error);
+            return false;
+        }
+    }
+
+    // Get or create a valid session ID
+    async getValidSessionId() {
+        // First try to get from cookies
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+            const [key, value] = cookie.trim().split('=');
+            if (key === 'sat_annotator_session') {
+                const sessionId = value;
+                // Validate this session still exists on server
+                const isValid = await this.validateSession(sessionId);
+                if (isValid) {
+                    console.log('Using existing valid session ID:', sessionId);
+                    return sessionId;
+                } else {
+                    console.log('Session ID in cookies is invalid, will create new one');
+                    // Clear the invalid cookie
+                    document.cookie = 'sat_annotator_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    break;
+                }
+            }
+        }
+        
+        // No valid session found, get new one from API
+        try {
+            const sessionResponse = await this.get('/api/session-id/');
+            const sessionId = sessionResponse.session_id;
+            console.log('Got new session ID from API:', sessionId);
+            // Store in cookie for future use
+            document.cookie = `sat_annotator_session=${sessionId}; path=/;`;
+            return sessionId;
+        } catch (e) {
+            console.error('Could not get session ID from API:', e);
+            return null;
         }
     }
 
@@ -206,21 +264,30 @@ class API {
             console.error('Failed to delete image:', error);
             throw error;
         }
-    }
-
-    // Perform AI segmentation
+    }    // Perform AI segmentation
     async segment(imageId, x, y) {
         try {
-            Utils.showLoading('Generating AI segmentation...');
+            // Show loading but allow it to be hidden quickly for cached results
+            const loadingTimeout = setTimeout(() => {
+                Utils.showLoading('Generating AI segmentation...');
+            }, 100); // Only show loading if it takes more than 100ms
+            
             const response = await this.post('/api/segment/', {
                 image_id: imageId,
                 x: x,
                 y: y
             });
+            
+            clearTimeout(loadingTimeout);
             Utils.hideLoading();
 
             if (response.success) {
-                Utils.showToast('AI segmentation generated!', 'success');
+                // Show different messages for cached vs new segmentation
+                const message = response.cached ? 
+                    'Instant segmentation!' : 
+                    'AI segmentation generated!';
+                Utils.showToast(message, 'success');
+                
                 return {
                     polygon: response.polygon,
                     annotationId: response.annotation_id,
@@ -231,8 +298,32 @@ class API {
             }
         } catch (error) {
             Utils.hideLoading();
-            Utils.showToast(`AI segmentation failed: ${error.message}`, 'error');
+            
+            // Handle specific timeout errors
+            if (error.message.includes('timeout') || error.message.includes('408')) {
+                Utils.showToast('Segmentation timeout - image may still be processing. Please try again in a moment.', 'warning');
+            } else {
+                Utils.showToast(`AI segmentation failed: ${error.message}`, 'error');
+            }
             throw error;
+        }
+    }
+
+    // Preprocess image for faster segmentation
+    async preprocessImage(imageId) {
+        try {
+            const response = await this.post('/api/preprocess/', {
+                image_id: imageId
+            });
+            
+            if (response.success) {
+                console.log(`Image ${imageId} preprocessed successfully`);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.warn(`Failed to preprocess image ${imageId}:`, error);
+            return false;
         }
     }
 

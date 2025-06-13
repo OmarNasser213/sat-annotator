@@ -23,46 +23,41 @@ window.addEventListener('unhandledrejection', (event) => {
     return false;
 });
 
-class SATAnnotator {
-    constructor() {
+class SATAnnotator {    constructor() {
         this.images = [];
         this.currentImageId = null;
         // Track if user has unsaved work for page protection
         this.hasUnsavedWork = false;
-    }    async initialize() {
-        console.log('=== SAT Annotator Initialization Started ===');
+    }async initialize() {        console.log('SAT Annotator Initialization Started');
         
         try {
             // Show loading immediately
             Utils.showLoading('Initializing...');
-            console.log('Step 1: Loading overlay shown');
+            console.log('Loading overlay shown');
             
             // Clear any existing session to ensure fresh start
-            console.log('Step 1.5: Clearing any existing session...');
             await api.clearSession();
-            console.log('Step 1.5: Session cleared, starting fresh');
-              // Reset application state
+            console.log('Session cleared, starting fresh');              // Reset application state
             this.images = [];
             this.currentImageId = null;
             this.hasUnsavedWork = false;
-            console.log('Step 1.6: Application state reset');
+            console.log('Application state reset');
             
             // Initialize managers with error handling
-            console.log('Step 2: Initializing Canvas Manager...');
+            console.log('Initializing Canvas Manager...');
             try {
                 window.canvasManager = new CanvasManager();
-                console.log('Step 2: Canvas Manager initialized successfully');
+                console.log('Canvas Manager initialized successfully');
             } catch (error) {
-                console.error('Step 2: Canvas Manager failed:', error);
+                console.error('Canvas Manager failed:', error);
                 throw new Error('Canvas Manager initialization failed: ' + error.message);
             }
-            
-            console.log('Step 3: Initializing Annotation Manager...');
+              console.log('Initializing Annotation Manager...');
             try {
                 window.annotationManager = new AnnotationManager();
-                console.log('Step 3: Annotation Manager initialized successfully');
+                console.log('Annotation Manager initialized successfully');
             } catch (error) {
-                console.error('Step 3: Annotation Manager failed:', error);
+                console.error('Annotation Manager failed:', error);
                 throw new Error('Annotation Manager initialization failed: ' + error.message);
             }
 
@@ -71,54 +66,51 @@ class SATAnnotator {
             this.resetUI();
             console.log('Step 3.5: UI reset complete');
             
-            // Setup event listeners
-            console.log('Step 4: Setting up event listeners...');
+            // Setup event listeners            console.log('Setting up event listeners...');
             try {
                 this.setupEventListeners();
-                console.log('Step 4: Event listeners setup complete');
+                console.log('Event listeners setup complete');
             } catch (error) {
-                console.error('Step 4: Event listeners setup failed:', error);
+                console.error('Event listeners setup failed:', error);
                 throw new Error('Event listeners setup failed: ' + error.message);
             }
-            
-            // Check server status
-            console.log('Step 5: Checking server status...');
+              // Check server status
+            console.log('Checking server status...');
             try {
                 await this.checkServerStatus();
-                console.log('Step 5: Server status check complete');
+                console.log('Server status check complete');
             } catch (error) {
-                console.error('Step 5: Server status check failed:', error);
+                console.error('Server status check failed:', error);
                 throw new Error('Server status check failed: ' + error.message);
             }
             
             // Load existing images
-            console.log('Step 6: Loading images...');
+            console.log('Loading images...');
             try {
                 await this.loadImages();
-                console.log('Step 6: Images loading complete');
+                console.log('Images loading complete');
             } catch (error) {
-                console.error('Step 6: Images loading failed:', error);
+                console.error('Images loading failed:', error);
                 throw new Error('Images loading failed: ' + error.message);
             }
               // Hide loading and show success
             Utils.hideLoading();
-            console.log('Step 7: Loading overlay hidden');
-            
-            // Force hide after a small delay to ensure it's really hidden
+            console.log('Loading overlay hidden');
+              // Force hide after a small delay to ensure it's really hidden
             setTimeout(() => {
                 const overlay = document.getElementById('loadingOverlay');
                 if (overlay) {
                     overlay.style.display = 'none';
                     overlay.hidden = true;
-                    console.log('Step 7b: Force hidden loading overlay');
+                    console.log('Force hidden loading overlay');
                 }
             }, 100);
             
             Utils.showToast('SAT Annotator ready!', 'success');
-            console.log('=== SAT Annotator Initialization Complete ===');
+            console.log('SAT Annotator Initialization Complete');
             
         } catch (error) {
-            console.error('!!! INITIALIZATION FAILED !!!');
+            console.error('INITIALIZATION FAILED');
             console.error('Error:', error);
             console.error('Error message:', error.message);
             console.error('Error stack:', error.stack);
@@ -423,16 +415,20 @@ class SATAnnotator {
         if (invalidFiles.length > 0) {
             Utils.showToast(`Invalid files: ${invalidFiles.join(', ')}. Please select valid image files (JPG, PNG, TIFF, GeoTIFF) smaller than 100MB.`, 'error');
         }
-        
-        if (validFiles.length === 0) {
+          if (validFiles.length === 0) {
             return;
         }
-          // Upload all valid files sequentially to preserve order
+
+        // Determine if this is single or multi-upload for different handling
+        const isSingleUpload = validFiles.length === 1;
+        console.log(`📁 ${isSingleUpload ? 'Single' : 'Multi'} upload detected: ${validFiles.length} file(s)`);
+          
+        // Upload all valid files sequentially to preserve order
         const successfulUploads = [];
         
         try {
             // Show loading for multiple uploads
-            Utils.showLoading(`Uploading ${validFiles.length} image${validFiles.length > 1 ? 's' : ''}...`);            // Upload files one by one to preserve selection order
+            Utils.showLoading(`Uploading ${validFiles.length} image${validFiles.length > 1 ? 's' : ''}...`);// Upload files one by one to preserve selection order
             for (let i = 0; i < validFiles.length; i++) {
                 const file = validFiles[i];
                 try {
@@ -451,107 +447,40 @@ class SATAnnotator {
                     console.log(`Upload ${i + 1}/${validFiles.length} completed:`, imageData);
                     
                     // Show upload completed
-                    Utils.showProgressBar(95, `Upload complete, preparing segmentation...`);
-                    
-                    // Add to images list
+                    Utils.showProgressBar(95, `Upload complete, segmenting image...`);                    // Add to images list
                     this.images.push(imageData);
                     // Mark as having unsaved work
                     this.hasUnsavedWork = true;
                     successfulUploads.push(imageData);
 
-                    // Transition to segmentation phase
-                    Utils.showProgressBar(100, `Preparing ${file.name} for annotation...`);
-
-                    // --- WebSocket for embedding progress ---
-                    // Get session id from cookie or API endpoint
-                    let sessionId = null;
-                    
-                    // First try to get from cookies
-                    const cookies = document.cookie.split(';');
-                    console.log('All cookies:', document.cookie);
-                    for (const cookie of cookies) {
-                        const [key, value] = cookie.trim().split('=');
-                        console.log(`Cookie: ${key} = ${value}`);
-                        if (key === 'sat_annotator_session') {
-                            sessionId = value;
-                            console.log('Found session ID in cookies:', sessionId);
-                            break;
-                        }
-                    }
-                    
-                    // If no session ID in cookies, get it from the API
-                    if (!sessionId) {
-                        console.log('No session ID in cookies, getting from API...');
-                        try {
-                            const sessionResponse = await api.get('/api/session-id/');
-                            sessionId = sessionResponse.session_id;
-                            console.log('Got session ID from API:', sessionId);
-                        } catch (e) {
-                            console.error('Could not get session ID from API:', e);
-                        }
-                    }
-                    
-                    if (sessionId) {
-                        const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-                        const wsUrl = `${wsProtocol}://${window.location.host}/api/ws/notify/${sessionId}`;
+                    if (isSingleUpload) {
+                        // SINGLE UPLOAD: Immediate preprocessing for instant first-click segmentation
+                        Utils.showProgressBar(100, 'Upload complete - processing image...');
                         
                         try {
-                            const ws = new WebSocket(wsUrl);
-                            
-                            // Add timeout in case WebSocket never responds
-                            const segmentationTimeout = setTimeout(() => {
-                                Utils.showProgressBar(100, 'Segmentation timeout - continuing...');
-                                setTimeout(() => {
-                                    Utils.hideProgressBar();
-                                }, 2000);
-                                ws.close();
-                            }, 30000); // 30 second timeout
-                            
-                            ws.onopen = () => {
-                                console.log('WebSocket connected for segmentation progress');
-                            };                            ws.onmessage = (event) => {
-                                clearTimeout(segmentationTimeout);
-                                console.log('WebSocket message received:', event.data);
-                                if (event.data.includes('Image ready for annotation')) {
-                                    Utils.showProgressBar(100, 'Ready for annotation! ✓');
-                                    setTimeout(() => {
-                                        Utils.hideProgressBar();
-                                    }, 1500); // Show completion message for 1.5 seconds
-                                    Utils.showToast('Image ready for annotation!', 'success');
-                                    ws.close();
-                                }
-                            };
-                            
-                            ws.onerror = (event) => {
-                                clearTimeout(segmentationTimeout);
-                                console.error('WebSocket error:', event);
-                                Utils.showProgressBar(100, 'Connection error');
-                                setTimeout(() => {
-                                    Utils.hideProgressBar();
-                                }, 2000);
-                                Utils.showToast('WebSocket error during segmentation progress.', 'error');
-                            };
-                            
-                            ws.onclose = () => {
-                                console.log('WebSocket connection closed');
-                            };
-                            
-                        } catch (wsError) {
-                            console.error('WebSocket creation failed:', wsError);
-                            Utils.showProgressBar(100, 'WebSocket failed');
+                            // Call preprocessing immediately for instant segmentation
+                            await api.preprocessImage(imageData.image_id);
+                            Utils.showProgressBar(100, 'Ready for annotation! ✓');
+                            setTimeout(() => {
+                                Utils.hideProgressBar();
+                            }, 1000);
+                            Utils.showToast('Image ready for annotation', 'success');
+                        } catch (preprocessError) {
+                            console.warn('Preprocessing failed, but image is available for manual annotation:', preprocessError);
+                            Utils.showProgressBar(100, 'Upload complete');
                             setTimeout(() => {
                                 Utils.hideProgressBar();
                             }, 2000);
+                            Utils.showToast('Image uploaded successfully', 'info');
                         }
                     } else {
-                        // No session ID found, hide progress bar
-                        console.warn('No session ID found for WebSocket connection');
-                        Utils.showProgressBar(100, 'Session error');
+                        // MULTI-UPLOAD: Only show completion message, don't preprocess yet
+                        // We'll preprocess only the selected image after all uploads complete
+                        Utils.showProgressBar(100, 'Upload complete ✓');
                         setTimeout(() => {
                             Utils.hideProgressBar();
-                        }, 2000);
+                        }, 500);
                     }
-                    // --- End WebSocket ---
                     
                 } catch (error) {
                     console.error(`Upload failed for ${file.name}:`, error);
@@ -564,8 +493,7 @@ class SATAnnotator {
             }
             // Do not hide the progress bar here; it will be hidden after segmentation is complete.
             // Reload images from server to get updated list
-            await this.loadImages();
-            // Show success message
+            await this.loadImages();            // Show success message
             if (successfulUploads.length > 0) {
                 Utils.showToast(`Successfully uploaded ${successfulUploads.length} image${successfulUploads.length > 1 ? 's' : ''}`, 'success');
                 // Select the first image from the newly uploaded ones
@@ -576,9 +504,24 @@ class SATAnnotator {
                     if (firstUploadedImage) {
                         console.log('Selecting first uploaded image with ID:', firstUploadedImage.image_id);
                         await this.selectImage(firstUploadedImage.image_id);
+                        
+                        // CRITICAL: For multi-upload ONLY, preprocess the selected image for instant segmentation
+                        // Single uploads already have preprocessing done above
+                        if (!isSingleUpload) {                            // Multi-upload complete - preprocessing selected image for instant segmentation
+                            Utils.showLoading('Preparing image for annotation...');
+                            try {
+                                await api.preprocessImage(firstUploadedImage.image_id);
+                                Utils.showToast('Ready for instant annotation!', 'success');
+                                console.log('✅ Selected image preprocessed - first click will be instant');
+                            } catch (preprocessError) {
+                                console.warn('Preprocessing failed for selected image:', preprocessError);
+                                Utils.showToast('Image ready for manual annotation', 'info');
+                            } finally {
+                                Utils.hideLoading();
+                            }
+                        }
                     }
-                }
-            }
+                }            }
             
         } catch (error) {
             Utils.hideLoading();
@@ -587,29 +530,38 @@ class SATAnnotator {
         }
     }    async loadImages() {
         try {
-            console.log('loadImages: Starting to load images...');
-            // Don't show loading here since main initialization already shows it
+            console.log('Starting to load images...');
             
+            // Validate session before trying to load images
+            const sessionId = await api.getValidSessionId();
+            if (!sessionId) {
+                console.warn('No valid session available');
+                this.images = [];
+                this.updateImagesList();
+                return;
+            }
+            
+            // Don't show loading here since main initialization already shows it
             this.images = await api.getImages();
             
             // Sort images by creation time (oldest first) to maintain upload order
             this.images.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
             
-            console.log('loadImages: Images loaded and sorted:', this.images);
+            console.log('Images loaded and sorted:', this.images);
             
             this.updateImagesList();
-            console.log('loadImages: Images list updated');
+            console.log('Images list updated');
             
             if (this.images.length > 0) {
-                console.log(`loadImages: Found ${this.images.length} images`);
+                console.log(`Found ${this.images.length} images`);
             } else {
-                console.log('loadImages: No images found (fresh session)');
+                console.log('No images found (fresh session)');
             }
         } catch (error) {
-            console.error('loadImages: Error occurred:', error);
+            console.error('Error occurred:', error);
             throw error; // Re-throw so main initialization can handle it
         }
-    }    updateImagesList() {
+    }updateImagesList() {
         const container = document.getElementById('imagesList');
         const clearAllBtn = document.getElementById('clearAllImages');
         
@@ -671,7 +623,7 @@ class SATAnnotator {
         if (clearAllBtn) {
             clearAllBtn.disabled = false;
         }
-    }async selectImage(imageId) {
+    }    async selectImage(imageId) {
         // Find image data
         const imageData = this.images.find(img => img.image_id == imageId);
         if (!imageData) {
@@ -683,12 +635,20 @@ class SATAnnotator {
         
         // Update UI
         this.updateImagesList();
-        
-        // Load image in canvas
-        window.canvasManager.loadImage(imageData);
-        
-        // Load annotations for this image (now async)
+          // CRITICAL: Set annotation manager's current image BEFORE loading canvas image
+        // This prevents the canvas image mismatch warning during redraw
         await window.annotationManager.setCurrentImage(imageId);
+        
+        // Load image in canvas (this will trigger redraw with correct annotation context)
+        // Always treat as single upload - no special multi-upload handling
+        window.canvasManager.loadImage(imageData, false);
+          // IMPORTANT: Ensure preprocessing is done for instant segmentation when switching images
+        try {
+            await api.preprocessImage(imageId);
+            console.log(`Image ${imageId} preprocessed for instant segmentation`);
+        } catch (preprocessError) {
+            console.warn(`Preprocessing failed for image ${imageId}:`, preprocessError);
+        }
         
         Utils.showToast(`Loaded: ${imageData.file_name}`, 'success');
     }
@@ -891,7 +851,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Add some debug functions for development
 window.debugInfo = () => {
-    console.log('=== SAT Annotator Debug Info ===');
+    console.log('SAT Annotator Debug Info');
     console.log('Images:', window.satAnnotator?.images || []);
     console.log('Current Image:', window.satAnnotator?.currentImageId || null);
     console.log('Annotations:', window.annotationManager?.annotations || []);
@@ -911,7 +871,7 @@ window.clearSession = () => window.satAnnotator?.clearSession();
 
 // Show keyboard shortcuts in console
 console.log(`
-🛰️ SAT Annotator - Keyboard Shortcuts:
+SAT Annotator - Keyboard Shortcuts:
 • 1 - Select tool
 • 2 - AI Point tool  
 • 3 - Polygon tool
@@ -922,7 +882,7 @@ console.log(`
 • - - Zoom out  
 • 0 - Fit to screen
 
-💻 Debug commands:
+Debug commands:
 • debugInfo() - Show debug information
 • exportSession() - Export session data
 • clearSession() - Clear all data

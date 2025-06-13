@@ -90,30 +90,19 @@ class Utils {
             console.warn('Invalid coordinates in imageToCanvasCoords:', { imageX, imageY, scale, offsetX, offsetY });
             return { x: 0, y: 0 };
         }
-        
-        // Convert normalized coordinates (0-1) to canvas coordinates
+          // Convert normalized coordinates (0-1) to canvas coordinates
         // imageX and imageY are already normalized (0-1), so we need to:
         // 1. Scale them by the displayed image size
         // 2. Add the image offset within the canvas
         const x = (imageX * imageWidth * scale) + offsetX;
         const y = (imageY * imageHeight * scale) + offsetY;
         
-        // Debug first few coordinate transformations
-        if (Math.random() < 0.01) { // Log 1% of transformations to avoid spam
-            console.log('Coordinate transform:', {
-                input: { imageX, imageY },
-                imageSize: { imageWidth, imageHeight },
-                transform: { scale, offsetX, offsetY },
-                output: { x, y }
-            });
-        }
-        
         return { x, y };
-    }
-
-    // Calculate distance between two points
+    }// Calculate distance between two points (optimized)
     static distance(p1, p2) {
-        return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        return Math.sqrt(dx * dx + dy * dy);
     }
 
     // Check if point is inside polygon
@@ -349,31 +338,56 @@ class Utils {
         console.log('Overlay hidden attribute:', overlay.hidden);
         console.log('Computed display:', computedStyle.display);
         console.log('Computed visibility:', computedStyle.visibility);
-        console.log('Computed opacity:', computedStyle.opacity);
-    }
+        console.log('Computed opacity:', computedStyle.opacity);    }
 
     // Show toast notification
     static showToast(message, type = 'success', duration = 3000) {
-        const container = document.getElementById('toastContainer');
+        // Get or create container
+        let container = document.getElementById('toastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container';
+            document.body.appendChild(container);
+        }
+        
+        // Create toast element
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
+        
+        // Use template for better performance
+        const iconMap = {
+            'success': 'check-circle',
+            'error': 'exclamation-circle',
+            'warning': 'exclamation-triangle',
+            'info': 'info-circle'
+        };
+        
         toast.innerHTML = `
             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                <i class="fas fa-${iconMap[type] || 'info-circle'}"></i>
                 <span>${message}</span>
             </div>
         `;
         
+        // Force GPU acceleration
+        toast.style.transform = 'translateZ(0)';
+        
         container.appendChild(toast);
         
-        setTimeout(() => {
-            toast.style.animation = 'slideOut 0.3s ease forwards';
+        // Use requestAnimationFrame for smooth animations
+        requestAnimationFrame(() => {
             setTimeout(() => {
                 if (container.contains(toast)) {
-                    container.removeChild(toast);
+                    toast.style.animation = 'slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards';
+                    toast.addEventListener('animationend', () => {
+                        if (container.contains(toast)) {
+                            container.removeChild(toast);
+                        }
+                    }, { once: true });
                 }
-            }, 300);
-        }, duration);
+            }, duration);
+        });
     }
 
     // Clamp value between min and max
@@ -432,9 +446,7 @@ class Utils {
             };
               check();
         });
-    }
-
-    // Show a temporary notification message
+    }    // Show a temporary notification message (optimized)
     static showNotification(message, duration = 3000) {
         // Create or reuse notification element
         let notification = document.getElementById('statusNotification');
@@ -442,17 +454,21 @@ class Utils {
         if (!notification) {
             notification = document.createElement('div');
             notification.id = 'statusNotification';
-            notification.style.position = 'fixed';
-            notification.style.bottom = '20px';
-            notification.style.left = '50%';
-            notification.style.transform = 'translateX(-50%)';
-            notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-            notification.style.color = 'white';
-            notification.style.padding = '10px 20px';
-            notification.style.borderRadius = '4px';
-            notification.style.zIndex = '1000';
-            notification.style.transition = 'opacity 0.3s ease';
-            notification.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+            notification.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translate3d(-50%, 0, 0);
+                background-color: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 4px;
+                z-index: 1000;
+                transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+                will-change: opacity;
+                backface-visibility: hidden;
+            `;
             document.body.appendChild(notification);
         }
         
@@ -469,25 +485,31 @@ class Utils {
         notification.timeoutId = setTimeout(() => {
             notification.style.opacity = '0';
         }, duration);
-    }    // Show progress bar
+    }// Show progress bar with performance optimization
     static showProgressBar(percent, text = '') {
         const container = document.getElementById('progressBarContainer');
         const bar = document.getElementById('progressBar');
         const label = document.getElementById('progressBarText');
         
         if (container && bar) {
-            container.classList.add('show');
-            bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
-            if (label) label.textContent = text;
+            // Use requestAnimationFrame for smoother updates
+            requestAnimationFrame(() => {
+                container.classList.add('show');
+                bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+                if (label) label.textContent = text;
+            });
             console.log(`Progress bar shown: ${percent}% - ${text}`);
         }
     }
     
-    // Hide progress bar
+    // Hide progress bar with immediate response
     static hideProgressBar() {
         const container = document.getElementById('progressBarContainer');
         if (container) {
-            container.classList.remove('show');
+            // Use requestAnimationFrame for immediate visual response
+            requestAnimationFrame(() => {
+                container.classList.remove('show');
+            });
             console.log('Progress bar hidden');
         }
     }
