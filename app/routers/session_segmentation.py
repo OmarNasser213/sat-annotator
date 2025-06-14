@@ -93,80 +93,109 @@ async def segment_from_point(
     
     try:
         import time
-        start_time = time.time()
-        
+        timings = {}
+        op_start = time.time()
+
         # Determine if running in Docker
         in_docker = os.path.exists('/.dockerenv')
-        
+        timings['env_check'] = time.time() - op_start
+
         # Define annotation directory
+        t0 = time.time()
         if in_docker:
             annotation_dir = Path("/app/annotations")
         else:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             annotation_dir = Path(os.path.join(base_dir, "annotations"))
-        annotation_dir.mkdir(exist_ok=True)        # Get the image path from the session store
-        stored_path = image.file_path        # Construct image path using unified function
+        annotation_dir.mkdir(exist_ok=True)
+        timings['annotation_dir'] = time.time() - t0
+
+        # Get the image path from the session store
+        t1 = time.time()
+        stored_path = image.file_path
         image_path = construct_image_path(stored_path)
-        
+        timings['construct_image_path'] = time.time() - t1
+
         # Check if file exists
+        t2 = time.time()
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image file not found at {image_path}")
-            # Check if this is a new image or one we've already processed
-        is_cached = (image_path == segmenter.current_image_path and 
-                    image_path in segmenter.cache)
-        
-        logger.debug(f"Processing image: {image_path}, cached: {is_cached}, current: {segmenter.current_image_path}")
-          # Run segmentation in a thread pool with timeout
+        timings['file_exists'] = time.time() - t2
+
+        # Check if this is a new image or one we've already processed
+        t3 = time.time()
+        is_cached = (image_path == segmenter.current_image_path and image_path in segmenter.cache)
+        timings['cache_check'] = time.time() - t3
+
+        logger.info(f"Processing image: {image_path}, cached: {is_cached}, current: {segmenter.current_image_path}")
+
         def run_segmentation():
+            op_times = {}
+            op_times['start'] = time.time()
             # OPTIMIZED: Only set image if it's not already the current image
-            # This preserves the instant segmentation after preprocessing
             if segmenter.current_image_path != image_path:
-                logger.debug(f"Setting new image in SAM: {image_path}")
+                logger.info(f"Setting new image in SAM: {image_path}")
+                t_set = time.time()
                 height, width = segmenter.set_image(image_path)
+                op_times['set_image'] = time.time() - t_set
             else:
-                logger.debug(f"Using already-set image (instant segmentation!)")
-                # Get dimensions from cache instead of re-setting
+                logger.info(f"Using already-set image (instant segmentation!)")
+                t_cache = time.time()
                 if image_path in segmenter.cache:
                     height, width = segmenter.cache[image_path]['image_size']
                 else:
-                    # Fallback - this shouldn't happen if preprocessing worked
                     logger.warning(f"Image not in cache, falling back to set_image")
                     height, width = segmenter.set_image(image_path)
-            
+                op_times['cache_lookup'] = time.time() - t_cache
+
             pixel_x = int(prompt.x * width)
             pixel_y = int(prompt.y * height)
-            
-            logger.debug(f"Click at coordinates: ({pixel_x}, {pixel_y}) for image size: {width}x{height}")
-            
+            logger.info(f"Click at coordinates: ({pixel_x}, {pixel_y}) for image size: {width}x{height}")
+
             # Get mask from point (GPU accelerated)
-            mask_start = time.time()
+            t_mask = time.time()
             mask = segmenter.predict_from_point([pixel_x, pixel_y])
-            mask_time = time.time() - mask_start
-            logger.debug(f"Mask generation time: {mask_time:.3f}s")
-            
+            op_times['mask_generation'] = time.time() - t_mask
+            logger.info(f"Mask generation time: {op_times['mask_generation']:.3f}s")
+
             # Convert mask to polygon immediately
+            t_poly = time.time()
             polygon = segmenter.mask_to_polygon(mask)
-            
+            op_times['polygon_conversion'] = time.time() - t_poly
+            logger.info(f"Polygon conversion time: {op_times['polygon_conversion']:.3f}s")
+
             if not polygon:
                 raise ValueError("Could not generate polygon from mask")
-                
-            return polygon, is_cached
-        
+
+            op_times['total'] = time.time() - op_times['start']
+            logger.info(f"Segmentation operation timings: {op_times}")
+            # Find the slowest step (excluding 'start' and 'total')
+            slowest_step = None
+            slowest_time = 0.0
+            for k, v in op_times.items():
+                if k not in ('start', 'total') and v > slowest_time:
+                    slowest_step = k
+                    slowest_time = v
+            if slowest_step:
+                logger.info(f"SLOWEST STEP: {slowest_step} took {slowest_time:.3f}s")
+            return polygon, is_cached, op_times
+
         # Execute with timeout (30 seconds)
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(run_segmentation)
             try:
-                polygon, is_cached = await asyncio.wait_for(
-                    asyncio.wrap_future(future), 
+                polygon, is_cached, seg_timings = await asyncio.wait_for(
+                    asyncio.wrap_future(future),
                     timeout=30.0
                 )
             except asyncio.TimeoutError:
                 raise HTTPException(
-                    status_code=408, 
+                    status_code=408,
                     detail="Segmentation timeout - image may still be processing..."
                 )
-        
+
         # Save JSON
+        t_save = time.time()
         annotation_path = annotation_dir / f"annotation_{session_id}_{image.image_id}_{len(polygon)}.json"
         with open(annotation_path, "w") as f:
             json.dump({
@@ -179,30 +208,34 @@ async def segment_from_point(
                     "cached": is_cached
                 }
             }, f)
-        
+        timings['save_json'] = time.time() - t_save
+
         # Add annotation to session store
+        t_ann = time.time()
         annotation = session_store.add_annotation(
             session_id=session_id,
             image_id=image.image_id,
             file_path=str(annotation_path),
             auto_generated=True
         )
-        
-        logger.debug(f"Generated segmentation with {len(polygon)} points, cached: {is_cached}")
-          # Calculate total processing time
-        total_processing_time = time.time() - start_time
-        logger.debug(f"Total segmentation processing time: {total_processing_time:.3f}s")
-        
+        timings['add_annotation'] = time.time() - t_ann
+
+        logger.info(f"Generated segmentation with {len(polygon)} points, cached: {is_cached}")
+        total_processing_time = time.time() - op_start
+        logger.info(f"Total segmentation processing time: {total_processing_time:.3f}s")
+        logger.info(f"Step timings: {timings}")
+
+        # Optionally, include detailed timings in the response for debugging
         return SegmentationResponse(
             success=True,
             polygon=polygon,
             annotation_id=annotation.annotation_id if annotation else None,
             cached=is_cached,
-            processing_time=total_processing_time
+            processing_time=total_processing_time,
+            timings={**timings, **seg_timings}
         )
-        
+
     except HTTPException:
-        # Re-raise HTTP exceptions (like timeout)
         raise
     except Exception as e:
         logger.error(f"Error in segmentation: {str(e)}", exc_info=True)
