@@ -1,12 +1,12 @@
 // Annotation management for SAT Annotator
 
-class AnnotationManager {
-    constructor() {
+class AnnotationManager {    constructor() {
         this.annotations = [];
         this.selectedAnnotation = null;
         this.currentImageId = null;
         this.currentLabel = 'building'; // Default label
         this.customLabels = []; // Store custom labels added by user
+        this.currentEditingAnnotationId = null; // Track which annotation is being edited
         
         try {
             this.setupEventListeners();
@@ -37,7 +37,45 @@ class AnnotationManager {
         
         // Hide context menu when clicking elsewhere
         document.addEventListener('click', () => this.hideContextMenu());
-    }    async setCurrentImage(imageId) {
+
+        // Edit Label Modal Events
+        document.getElementById('closeEditModal').addEventListener('click', () => this.closeEditLabelModal());
+        document.getElementById('cancelEditLabel').addEventListener('click', () => this.closeEditLabelModal());
+        document.getElementById('saveEditLabel').addEventListener('click', () => this.saveEditedLabel());
+        
+        // Handle dropdown selection change
+        document.getElementById('labelSelect').addEventListener('change', (e) => {
+            const customInput = document.getElementById('customLabelEdit');
+            if (e.target.value === '__new__') {
+                customInput.focus();
+            } else {
+                customInput.value = '';
+            }
+        });
+        
+        // Handle adding new label from modal
+        document.getElementById('addNewLabelBtn').addEventListener('click', () => {
+            const input = document.getElementById('customLabelEdit');
+            const label = input.value.trim().toLowerCase();
+            if (label) {
+                document.getElementById('labelSelect').value = '__new__';
+            }
+        });
+        
+        // Handle Enter key in custom label input
+        document.getElementById('customLabelEdit').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.saveEditedLabel();
+            }
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !document.getElementById('editLabelModal').hidden) {
+                this.closeEditLabelModal();
+            }
+        });
+    }async setCurrentImage(imageId) {
         console.log(`🔍 setCurrentImage called with: ${imageId}`);
         console.log(`🔍 Previous currentImageId: ${this.currentImageId}`);
         
@@ -133,7 +171,7 @@ class AnnotationManager {
         button.innerHTML = `
             <i class="fas fa-tag"></i>
             <span>${label}</span>
-            <i class="fas fa-times remove-label" onclick="event.stopPropagation(); annotationManager.removeCustomLabel('${label}')"></i>
+            <i class="fas fa-times remove-label" onclick="event.stopPropagation(); window.annotationManager.removeCustomLabel('${label}')"></i>
         `;
         
         // Add click event
@@ -337,17 +375,16 @@ class AnnotationManager {
                         <h4>${annotation.label}</h4>
                         <p>${annotation.source === 'ai' ? 'AI Generated' : 'Manual'} • ${annotation.polygon.length} points${annotation.simplified ? ' (simplified)' : ''}</p>
                     </div>
-                    <div class="annotation-actions">
-                        <button class="action-btn" onclick="annotationManager.editPolygon('${annotation.id}')" title="Edit polygon">
+                    <div class="annotation-actions">                        <button class="action-btn" onclick="window.annotationManager.editPolygon('${annotation.id}')" title="Edit polygon">
                             <i class="fas fa-edit"></i>
                         </button>
-                        ${annotation.originalPolygon ? `<button class="action-btn" onclick="annotationManager.resimplifyPolygon('${annotation.id}')" title="Re-simplify with current settings">
+                        ${annotation.originalPolygon ? `<button class="action-btn" onclick="window.annotationManager.resimplifyPolygon('${annotation.id}')" title="Re-simplify with current settings">
                             <i class="fas fa-compress"></i>
                         </button>` : ''}
-                        <button class="action-btn" onclick="annotationManager.editAnnotation('${annotation.id}')" title="Edit label">
+                        <button class="action-btn" onclick="window.annotationManager.editAnnotation('${annotation.id}')" title="Edit label">
                             <i class="fas fa-tag"></i>
                         </button>
-                        <button class="action-btn" onclick="annotationManager.deleteAnnotation('${annotation.id}')" title="Delete">
+                        <button class="action-btn" onclick="window.annotationManager.deleteAnnotation('${annotation.id}')" title="Delete">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -383,16 +420,19 @@ class AnnotationManager {
         // Update header or status somewhere if needed
         // Could add a status bar showing these counts
     }    editAnnotation(id) {
+        console.log('editAnnotation called with ID:', id);
         const annotation = this.annotations.find(ann => ann.id === id);
-        if (!annotation) return;
-        
-        // Simple prompt for now - could be enhanced with inline editing later
-        const newLabel = prompt('Enter new label:', annotation.label);
-        if (newLabel && newLabel.trim() !== annotation.label) {
-            this.updateAnnotation(id, { label: newLabel.trim() });
-            this.saveAnnotation(id);
+        if (!annotation) {
+            console.error('Annotation not found with ID:', id);
+            return;
         }
-    }    editPolygon(id) {
+        
+        console.log('Found annotation:', annotation);
+        this.currentEditingAnnotationId = id;
+        this.showEditLabelModal(annotation.label);
+    }
+
+    editPolygon(id) {
         // Switch to select tool for editing
         window.canvasManager.setTool('select');
         window.canvasManager.updateToolButtons();
@@ -414,6 +454,131 @@ class AnnotationManager {
             'Use Edit Mode button to toggle off',
             5000
         );
+    }    showEditLabelModal(currentLabel) {
+        console.log('showEditLabelModal called with label:', currentLabel);
+        const modal = document.getElementById('editLabelModal');
+        const labelSelect = document.getElementById('labelSelect');
+        const customLabelInput = document.getElementById('customLabelEdit');
+        
+        if (!modal) {
+            console.error('Modal element not found!');
+            return;
+        }
+        
+        if (!labelSelect) {
+            console.error('Label select element not found!');
+            return;
+        }
+        
+        if (!customLabelInput) {
+            console.error('Custom label input element not found!');
+            return;
+        }
+        
+        console.log('Modal element found, proceeding...');
+        
+        // Clear previous content
+        labelSelect.innerHTML = '';
+        customLabelInput.value = '';
+        
+        // Populate dropdown with all available labels
+        this.populateLabelDropdown(labelSelect, currentLabel);
+          // Show modal
+        console.log('Adding show class to modal');
+        modal.classList.add('show');
+        console.log('Modal should now be visible');
+    }
+
+    populateLabelDropdown(selectElement, currentLabel) {
+        // Get all available labels (default + custom)
+        const defaultLabels = ['building', 'road', 'vegetation', 'water', 'parking'];
+        const allLabels = [...new Set([...defaultLabels, ...this.customLabels])];
+        
+        // Add options to select
+        allLabels.forEach(label => {
+            const option = document.createElement('option');
+            option.value = label;
+            option.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+            
+            if (label === currentLabel) {
+                option.selected = true;
+            }
+            
+            selectElement.appendChild(option);
+        });
+        
+        // Add option for creating new label
+        const newOption = document.createElement('option');
+        newOption.value = '__new__';
+        newOption.textContent = '+ Add new label...';
+        selectElement.appendChild(newOption);
+    }
+
+    populateSuggestedLabels(container, currentLabel) {
+        // Get unique labels from existing annotations
+        const existingLabels = [...new Set(this.annotations.map(ann => ann.label))]
+            .filter(label => label !== currentLabel)
+            .slice(0, 6); // Limit to 6 suggestions
+        
+        existingLabels.forEach(label => {
+            const suggestion = document.createElement('div');
+            suggestion.className = 'label-suggestion';
+            suggestion.textContent = label;
+            suggestion.addEventListener('click', () => {
+                document.getElementById('labelSelect').value = label;
+            });
+            container.appendChild(suggestion);
+        });
+    }    closeEditLabelModal() {
+        const modal = document.getElementById('editLabelModal');
+        modal.classList.remove('show');
+        this.currentEditingAnnotationId = null;
+    }
+
+    saveEditedLabel() {
+        const labelSelect = document.getElementById('labelSelect');
+        const customLabelInput = document.getElementById('customLabelEdit');
+        
+        let newLabel = '';
+        
+        if (labelSelect.value === '__new__') {
+            // User selected "Add new label"
+            newLabel = customLabelInput.value.trim().toLowerCase();
+            if (!newLabel) {
+                Utils.showToast('Please enter a label name', 'warning');
+                customLabelInput.focus();
+                return;
+            }
+        } else {
+            newLabel = labelSelect.value;
+        }
+        
+        if (!newLabel) {
+            Utils.showToast('Please select or enter a label', 'warning');
+            return;
+        }
+        
+        // Add to custom labels if it's new
+        if (!this.customLabels.includes(newLabel) && 
+            !['building', 'road', 'vegetation', 'water', 'parking'].includes(newLabel)) {
+            this.customLabels.push(newLabel);
+            this.createCustomLabelButton(newLabel);
+        }
+          // Update annotation
+        const annotation = this.annotations.find(ann => ann.id === this.currentEditingAnnotationId);
+        if (annotation && annotation.label !== newLabel) {
+            this.updateAnnotation(this.currentEditingAnnotationId, { label: newLabel });
+            this.saveAnnotation(this.currentEditingAnnotationId);
+            
+            // Redraw canvas to update label display immediately
+            if (window.canvasManager) {
+                window.canvasManager.redraw();
+            }
+            
+            Utils.showToast(`Label changed to "${newLabel}"`, 'success');
+        }
+        
+        this.closeEditLabelModal();
     }
 
     resimplifyPolygon(id) {

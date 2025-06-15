@@ -950,106 +950,197 @@ body {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     z-index: 10000;
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    will-change: opacity;
+}
+
+.modal.show {
+    display: flex;
 }
 
 .modal-content {
     background: white;
-    border-radius: 0.75rem;
+    border-radius: 12px;
     width: 90%;
-    max-width: 400px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-    will-change: transform;
-    transform: translateZ(0);
+    max-width: 380px;
+    min-height: 320px;
+    max-height: 80vh;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    border: 1px solid #f1f5f9;
+    overflow: hidden;
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem 1.5rem 0;
+    padding: 1.5rem 2rem 1.25rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .modal-header h3 {
-    font-size: 1.125rem;
+    font-size: 0.95rem;
     font-weight: 600;
+    color: #334155;
+    margin: 0;
 }
 
 .modal-close {
     background: none;
     border: none;
-    font-size: 1.25rem;
+    font-size: 1rem;
     cursor: pointer;
-    color: #64748b;
-    width: 32px;
-    height: 32px;
+    color: #94a3b8;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0.25rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
 }
 
 .modal-close:hover {
-    background: #f1f5f9;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
 }
 
 .modal-body {
-    padding: 1.5rem;
+    padding: 1.5rem 2rem;
+    min-height: 220px;
 }
 
 .modal-body label {
     display: block;
     font-weight: 500;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
+    color: #475569;
+    font-size: 0.8rem;
 }
 
 .modal-body input {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.6rem 0.75rem;
     border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    margin-bottom: 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    margin-bottom: 0.75rem;
+    transition: border-color 0.2s ease;
 }
 
 .modal-body input:focus {
     outline: none;
     border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.suggested-labels {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
 
-.label-suggestion {
-    background: #f1f5f9;
-    color: #475569;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.label-suggestion:hover {
-    background: #e2e8f0;
-}
 
 .modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 0.75rem;
-    padding: 0 1.5rem 1.5rem;
+    gap: 1rem;
+    padding: 1.25rem 2rem 1.5rem;
+    background: #fafbfc;
+    border-top: 1px solid #f1f5f9;
 }
+
+.modal-footer .btn {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-footer .btn-secondary {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.modal-footer .btn-secondary:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.modal-footer .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.modal-footer .btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Label Selection Modal */
+.label-dropdown-container {
+    margin-bottom: 0.75rem;
+}
+
+.label-select {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.label-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.label-select option {
+    padding: 0.4rem;
+}
+
+.custom-label-container {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    align-items: stretch;
+}
+
+.custom-label-container input {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.custom-label-container .btn {
+    flex-shrink: 0;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 50px;
+    padding: 0.6rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: none;
+    color: white;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.custom-label-container .btn:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-1px);
+}
+
+
 
 /* Section Header with Action Button */
 .section-header {
@@ -1160,6 +1251,80 @@ body {
   font-weight: 500;
   text-align: center;
   margin: 0;
+}
+
+/* Animations */
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+/* Enhanced Mobile Responsiveness for Modal */
+@media (max-width: 640px) {
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 1rem;
+        border-radius: 1rem;
+    }
+    
+    .modal-header {
+        padding: 1.5rem 1.5rem 0;
+    }
+    
+    .modal-header::after {
+        left: 1.5rem;
+        right: 1.5rem;
+    }
+    
+    .modal-header h3 {
+        font-size: 1.125rem;
+    }
+    
+    .modal-body {
+        padding: 1.5rem;
+    }
+    
+    .modal-footer {
+        padding: 0 1.5rem 1.5rem;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .modal-footer::before {
+        left: 1.5rem;
+        right: 1.5rem;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .custom-label-container {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .custom-label-container .btn {
+        width: 100%;
+        min-width: auto;
+    }
 }
 
 /* Responsive Design */

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+<head>    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SAT Annotator - Satellite Image Annotation Tool</title>
+    <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,13 +12,12 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Header -->
-        <header class="header">
+        <!-- Header -->        <header class="header">
             <div class="header-content">
                 <div class="logo">
                     <i class="fas fa-satellite"></i>
                     <h1>SAT Annotator</h1>
-                </div>                <div class="header-actions">
+                </div><div class="header-actions">
                     <button id="mobileMenuBtn" class="btn btn-secondary mobile-only">
                         <i class="fas fa-bars"></i>
                         Menu
@@ -202,9 +201,7 @@
         </div>
 
         <!-- Toast Notifications -->
-        <div class="toast-container" id="toastContainer"></div>
-
-        <!-- Context Menu -->
+        <div class="toast-container" id="toastContainer"></div>        <!-- Context Menu -->
         <div class="context-menu" id="contextMenu" hidden>
             <ul>
                 <li id="deleteAnnotation">
@@ -215,7 +212,37 @@
                     <i class="fas fa-edit"></i>
                     Edit Label
                 </li>
-            </ul>        </div>
+            </ul>        </div>        <!-- Edit Label Modal -->
+        <div class="modal" id="editLabelModal" hidden>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Annotation Label</h3>
+                    <button class="modal-close" id="closeEditModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <label for="labelSelect">Select a label:</label>
+                    <div class="label-dropdown-container">
+                        <select id="labelSelect" class="label-select">
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+                      <label for="customLabelEdit">Or add a new label:</label>
+                    <div class="custom-label-container">
+                        <input type="text" id="customLabelEdit" placeholder="Enter new label..." maxlength="20">
+                        <button id="addNewLabelBtn" class="btn btn-small" type="button">
+                            <i class="fas fa-plus"></i>
+                            Add
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelEditLabel">Cancel</button>
+                    <button class="btn btn-primary" id="saveEditLabel">Save</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="js/utils.js"></script>
