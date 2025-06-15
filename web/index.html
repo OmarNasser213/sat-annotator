@@ -202,9 +202,7 @@
         </div>
 
         <!-- Toast Notifications -->
-        <div class="toast-container" id="toastContainer"></div>
-
-        <!-- Context Menu -->
+        <div class="toast-container" id="toastContainer"></div>        <!-- Context Menu -->
         <div class="context-menu" id="contextMenu" hidden>
             <ul>
                 <li id="deleteAnnotation">
@@ -215,7 +213,37 @@
                     <i class="fas fa-edit"></i>
                     Edit Label
                 </li>
-            </ul>        </div>
+            </ul>        </div>        <!-- Edit Label Modal -->
+        <div class="modal" id="editLabelModal" hidden>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit Annotation Label</h3>
+                    <button class="modal-close" id="closeEditModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <label for="labelSelect">Select a label:</label>
+                    <div class="label-dropdown-container">
+                        <select id="labelSelect" class="label-select">
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+                      <label for="customLabelEdit">Or add a new label:</label>
+                    <div class="custom-label-container">
+                        <input type="text" id="customLabelEdit" placeholder="Enter new label..." maxlength="20">
+                        <button id="addNewLabelBtn" class="btn btn-small" type="button">
+                            <i class="fas fa-plus"></i>
+                            Add
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelEditLabel">Cancel</button>
+                    <button class="btn btn-primary" id="saveEditLabel">Save</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="js/utils.js"></script>
