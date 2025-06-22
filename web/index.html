@@ -1,313 +1,408 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SAT Annotator - Satellite Image Annotation Tool</title>
-    <link rel="icon" type="image/png" href="logo.png">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body>
+    <link rel="icon" type="image/png" href="logo.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body>
     <div class="app-container">
-        <!-- Header -->        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <i class="fas fa-satellite"></i>
-                    <h1>SAT Annotator</h1>
-                </div><div class="header-actions">
-                    <button id="mobileMenuBtn" class="btn btn-secondary mobile-only">
-                        <i class="fas fa-bars"></i>
-                        Menu
-                    </button>                    <button id="exportBtn" class="btn btn-secondary" disabled>
-                        <i class="fas fa-download"></i>
-                        Export
-                    </button>
-                    <button id="clearAnnotations" class="btn btn-danger" disabled>
-                        <i class="fas fa-trash"></i>
-                        Clear All
-                    </button>
-                </div>
-            </div>
-        </header>        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Sidebar Overlay for Mobile -->
-            <div class="sidebar-overlay" id="sidebarOverlay"></div>
-            
-            <!-- Sidebar -->
-            <aside class="sidebar" id="sidebar">
-                <div class="sidebar-section">
-                    <h3><i class="fas fa-upload"></i> Upload Image</h3>
-                    <div class="upload-area" id="uploadArea">
-                        <div class="upload-content">
-                            <i class="fas fa-cloud-upload-alt"></i>                            <p>Drop satellite images here or click to browse</p>
-                            <span class="file-types">Supports: JPG, PNG, TIFF, GeoTIFF (Multiple files allowed)</span>
-                        </div>
-                        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.tiff,.tif,.geotiff" multiple hidden>
-                    </div>
-                </div>                <div class="sidebar-section">
-                    <div class="section-header">
-                        <h3><i class="fas fa-images"></i> Images</h3>
-                        <button class="clear-all-btn" id="clearAllImages" title="Remove All Images">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
-                    <div class="images-list" id="imagesList">
-                        <div class="no-images">
-                            <i class="fas fa-image"></i>
-                            <p>No images uploaded yet</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h3><i class="fas fa-tools"></i> Annotation Tools</h3>
-                    <div class="tools-grid">
-                        <button class="tool-btn active" id="selectTool" data-tool="select">
-                            <i class="fas fa-mouse-pointer"></i>
-                            <span>Select</span>
-                        </button>
-                        <button class="tool-btn" id="pointTool" data-tool="point">
-                            <i class="fas fa-crosshairs"></i>
-                            <span>AI Segment</span>
-                        </button>                        <button class="tool-btn" id="polygonTool" data-tool="polygon">
-                            <i class="fas fa-draw-polygon"></i>
-                            <span>Draw Polygon</span>
-                        </button>                        <button class="tool-btn toggle-btn" id="editToggle" title="Toggle edit mode for selected annotation (Press E)">
-                            <i class="fas fa-edit"></i>
-                            <span>Edit Mode</span>
-                        </button>
-                    </div>
-                </div><div class="sidebar-section">
-                    <h3><i class="fas fa-tags"></i> Labels</h3>
-                    <div class="labels-section">
-                        <div class="active-label">
-                            <label>Current Label:</label>
-                            <span id="currentLabel" class="current-label-display">building</span>
-                        </div>                        <div class="label-list" id="labelList">
-                            <button class="label-btn active default-label" data-label="building">
-                                <i class="fas fa-building"></i>
-                                <span>Building</span>
-                            </button>
-                            <button class="label-btn default-label" data-label="road">
-                                <i class="fas fa-road"></i>
-                                <span>Road</span>
-                            </button>
-                            <button class="label-btn default-label" data-label="vegetation">
-                                <i class="fas fa-tree"></i>
-                                <span>Vegetation</span>
-                            </button>
-                            <button class="label-btn default-label" data-label="water">
-                                <i class="fas fa-water"></i>
-                                <span>Water</span>
-                            </button>
-                            <button class="label-btn default-label" data-label="parking">
-                                <i class="fas fa-parking"></i>
-                                <span>Parking</span>
-                            </button>
-                        </div>
-                        <div class="custom-label-input">
-                            <input type="text" id="customLabelInput" placeholder="Add custom label..." maxlength="20">
-                            <button id="addCustomLabel" class="btn btn-small">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h3><i class="fas fa-layer-group"></i> Annotations</h3>
-                    <div class="annotations-list" id="annotationsList">
-                        <div class="no-annotations">
-                            <i class="fas fa-shapes"></i>
-                            <p>No annotations yet</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h3><i class="fas fa-cogs"></i> AI Segment Settings</h3>
-                    <div class="settings-section">
-                        <div class="setting-group">                            <label for="maxPoints">Max Points:</label>
-                            <input type="range" id="maxPoints" min="5" max="50" value="10" step="1">
-                            <span id="maxPointsValue">10</span>
-                        </div>
-                        <div class="setting-group">
-                            <label for="simplificationQuality">Quality:</label>
-                            <select id="simplificationQuality">
-                                <option value="high">High (More Points)</option>
-                                <option value="medium" selected>Medium (Balanced)</option>
-                                <option value="low">Low (Fewer Points)</option>
-                            </select>
-                        </div>
-                        <div class="setting-group">
-                            <button id="restoreOriginal" class="btn btn-small" disabled>
-                                <i class="fas fa-undo"></i>
-                                Restore Original
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </aside>
-
-            <!-- Main Canvas Area -->
-            <main class="canvas-container">
-                <div class="canvas-wrapper" id="canvasWrapper">
-                    <div class="canvas-placeholder">
-                        <i class="fas fa-satellite-dish"></i>
-                        <h2>Welcome to SAT Annotator</h2>
-                        <p>Upload a satellite image to start annotating</p>
-                    </div>
-                    <canvas id="mainCanvas"></canvas>
-                </div>
-
-                <!-- Canvas Controls -->
-                <div class="canvas-controls">
-                    <div class="zoom-controls">
-                        <button id="zoomIn" class="control-btn">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                        <span id="zoomLevel">100%</span>
-                        <button id="zoomOut" class="control-btn">
-                            <i class="fas fa-minus"></i>
-                        </button>                        <button id="fitToScreen" class="control-btn">
-                            <i class="fas fa-expand-arrows-alt"></i>
-                        </button>
-                        <button id="panTool" class="control-btn tool-btn" data-tool="pan" title="Pan tool">
-                            <i class="fas fa-hand-paper"></i>
-                        </button>
-                    </div>
-                    <div class="coordinates">
-                        <span id="mouseCoords">x: 0, y: 0</span>
-                    </div>
-                </div>
-            </main>
-        </div>        <!-- Progress Bar -->
-        <div class="progress-bar-container" id="progressBarContainer">
-            <div class="progress-bar-wrapper">
-                <div class="progress-bar" id="progressBar"></div>
-            </div>
-            <p id="progressBarText">Processing...</p>
+      <!-- Header -->
+      <header class="header">
+        <div class="header-content">
+          <div class="logo">
+            <i class="fas fa-satellite"></i>
+            <h1>SAT Annotator</h1>
+          </div>
+          <div class="header-actions">
+            <button id="mobileMenuBtn" class="btn btn-secondary mobile-only">
+              <i class="fas fa-bars"></i>
+              Menu
+            </button>
+            <button id="exportBtn" class="btn btn-secondary" disabled>
+              <i class="fas fa-download"></i>
+              Export
+            </button>
+            <button id="clearAnnotations" class="btn btn-danger" disabled>
+              <i class="fas fa-trash"></i>
+              Clear All
+            </button>
+          </div>
         </div>
-        <!-- Loading Overlay -->
-        <div class="loading-overlay" id="loadingOverlay" hidden>
-            <div class="loading-content">
-                <div class="spinner"></div>
-                <p id="loadingText">Processing...</p>
-            </div>
-        </div>
+      </header>
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Sidebar Overlay for Mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <!-- Toast Notifications -->
-        <div class="toast-container" id="toastContainer"></div>        <!-- Context Menu -->
-        <div class="context-menu" id="contextMenu" hidden>
-            <ul>
-                <li id="deleteAnnotation">
-                    <i class="fas fa-trash"></i>
-                    Delete Annotation
-                </li>
-                <li id="editAnnotation">
-                    <i class="fas fa-edit"></i>
-                    Edit Label
-                </li>
-            </ul>        </div>        <!-- Export Annotations Modal -->
-        <div class="modal" id="exportModal" hidden>
-            <div class="modal-content export-modal">
-                <div class="modal-header">
-                    <h3><i class="fas fa-download"></i> Export Annotations</h3>
-                    <button class="modal-close" id="closeExportModal">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="export-section">
-                        <h4><i class="fas fa-images"></i> Export Scope</h4>
-                        <div class="export-options">
-                            <label class="export-option export-scope-option selected">
-                                <input type="radio" name="exportScope" value="current" checked>
-                                <div class="option-content">
-                                    <div class="option-text">
-                                        <strong><i class="fas fa-image"></i> Current Image Only</strong>
-                                        <span>Export annotations from the currently selected image</span>
-                                    </div>
-                                </div>
-                            </label>
-                            <label class="export-option export-scope-option">
-                                <input type="radio" name="exportScope" value="all">
-                                <div class="option-content">
-                                    <div class="option-text">
-                                        <strong><i class="fas fa-layer-group"></i> All Images</strong>
-                                        <span>Export annotations from all uploaded images</span>
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>                      
-                    <div class="export-section">
-                        <h4><i class="fas fa-file-code"></i> Export Format</h4>
-                        <div class="export-options">
-                            <label class="export-option export-format-option selected">
-                                <input type="radio" name="exportFormat" value="json" checked>
-                                <div class="option-content">
-                                    <div class="option-text">
-                                        <strong><i class="fas fa-code"></i> JSON Format</strong>
-                                        <span>Structured data with complete annotation details</span>
-                                    </div>
-                                </div>
-                            </label>
-                            <label class="export-option export-format-option">
-                                <input type="radio" name="exportFormat" value="csv">
-                                <div class="option-content">
-                                    <div class="option-text">
-                                        <strong><i class="fas fa-table"></i> CSV Format</strong>
-                                        <span>Tabular data suitable for spreadsheet applications</span>
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>                
-                </div>
-                <div class="modal-footer export-footer">
-                    <button class="btn btn-secondary" id="cancelExport">Cancel</button>
-                    <button class="btn btn-primary export-btn" id="confirmExport">
-                        <i class="fas fa-download"></i> Export
-                    </button>
-                </div>
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-section">
+            <h3><i class="fas fa-upload"></i> Upload Image</h3>
+            <div class="upload-area" id="uploadArea">
+              <div class="upload-content">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Drop satellite images here or click to browse</p>
+                <span class="file-types"
+                  >Supports: JPG, PNG, TIFF, GeoTIFF (Multiple files
+                  allowed)</span
+                >
+              </div>
+              <input
+                type="file"
+                id="fileInput"
+                accept=".jpg,.jpeg,.png,.tiff,.tif,.geotiff"
+                multiple
+                hidden
+              />
             </div>
-        </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="section-header">
+              <h3><i class="fas fa-images"></i> Images</h3>
+              <button
+                class="clear-all-btn"
+                id="clearAllImages"
+                title="Remove All Images"
+              >
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+            <div class="images-list" id="imagesList">
+              <div class="no-images">
+                <i class="fas fa-image"></i>
+                <p>No images uploaded yet</p>
+              </div>
+            </div>
+          </div>
 
-        <!-- Edit Label Modal -->
-        <div class="modal" id="editLabelModal" hidden>
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Edit Annotation Label</h3>
-                    <button class="modal-close" id="closeEditModal">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <label for="labelSelect">Select a label:</label>
-                    <div class="label-dropdown-container">
-                        <select id="labelSelect" class="label-select">
-                            <!-- Options will be populated dynamically -->
-                        </select>
-                    </div>
-                      <label for="customLabelEdit">Or add a new label:</label>
-                    <div class="custom-label-container">
-                        <input type="text" id="customLabelEdit" placeholder="Enter new label..." maxlength="20">
-                        <button id="addNewLabelBtn" class="btn btn-small" type="button">
-                            <i class="fas fa-plus"></i>
-                            Add
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" id="cancelEditLabel">Cancel</button>
-                    <button class="btn btn-primary" id="saveEditLabel">Save</button>
-                </div>
+          <div class="sidebar-section">
+            <h3><i class="fas fa-tools"></i> Annotation Tools</h3>
+            <div class="tools-grid">
+              <button
+                class="tool-btn active"
+                id="selectTool"
+                data-tool="select"
+              >
+                <i class="fas fa-mouse-pointer"></i>
+                <span>Select</span>
+              </button>
+              <button class="tool-btn" id="pointTool" data-tool="point">
+                <i class="fas fa-crosshairs"></i>
+                <span>AI Segment</span>
+              </button>
+              <button class="tool-btn" id="polygonTool" data-tool="polygon">
+                <i class="fas fa-draw-polygon"></i>
+                <span>Draw Polygon</span>
+              </button>
+              <button
+                class="tool-btn toggle-btn"
+                id="editToggle"
+                title="Toggle edit mode for selected annotation (Press E)"
+              >
+                <i class="fas fa-edit"></i>
+                <span>Edit Mode</span>
+              </button>
             </div>
+          </div>
+          <div class="sidebar-section">
+            <h3><i class="fas fa-tags"></i> Labels</h3>
+            <div class="labels-section">
+              <div class="active-label">
+                <label>Current Label:</label>
+                <span id="currentLabel" class="current-label-display"
+                  >building</span
+                >
+              </div>
+              <div class="label-list" id="labelList">
+                <button
+                  class="label-btn active default-label"
+                  data-label="building"
+                >
+                  <i class="fas fa-building"></i>
+                  <span>Building</span>
+                </button>
+                <button class="label-btn default-label" data-label="road">
+                  <i class="fas fa-road"></i>
+                  <span>Road</span>
+                </button>
+                <button class="label-btn default-label" data-label="vegetation">
+                  <i class="fas fa-tree"></i>
+                  <span>Vegetation</span>
+                </button>
+                <button class="label-btn default-label" data-label="water">
+                  <i class="fas fa-water"></i>
+                  <span>Water</span>
+                </button>
+                <button class="label-btn default-label" data-label="parking">
+                  <i class="fas fa-parking"></i>
+                  <span>Parking</span>
+                </button>
+              </div>
+              <div class="custom-label-input">
+                <input
+                  type="text"
+                  id="customLabelInput"
+                  placeholder="Add custom label..."
+                  maxlength="20"
+                />
+                <button id="addCustomLabel" class="btn btn-small">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h3><i class="fas fa-layer-group"></i> Annotations</h3>
+            <div class="annotations-list" id="annotationsList">
+              <div class="no-annotations">
+                <i class="fas fa-shapes"></i>
+                <p>No annotations yet</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h3><i class="fas fa-cogs"></i> AI Segment Settings</h3>
+            <div class="settings-section">
+              <div class="setting-group">
+                <label for="maxPoints">Max Points:</label>
+                <input
+                  type="range"
+                  id="maxPoints"
+                  min="5"
+                  max="50"
+                  value="10"
+                  step="1"
+                />
+                <span id="maxPointsValue">10</span>
+              </div>
+              <div class="setting-group">
+                <label for="simplificationQuality">Quality:</label>
+                <select id="simplificationQuality">
+                  <option value="high">High (More Points)</option>
+                  <option value="medium" selected>Medium (Balanced)</option>
+                  <option value="low">Low (Fewer Points)</option>
+                </select>
+              </div>
+              <div class="setting-group">
+                <button id="restoreOriginal" class="btn btn-small" disabled>
+                  <i class="fas fa-undo"></i>
+                  Restore Original
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main Canvas Area -->
+        <main class="canvas-container">
+          <div class="canvas-wrapper" id="canvasWrapper">
+            <div class="canvas-placeholder">
+              <i class="fas fa-satellite-dish"></i>
+              <h2>Welcome to SAT Annotator</h2>
+              <p>Upload a satellite image to start annotating</p>
+            </div>
+            <canvas id="mainCanvas"></canvas>
+          </div>
+
+          <!-- Canvas Controls -->
+          <div class="canvas-controls">
+            <div class="zoom-controls">
+              <button id="zoomIn" class="control-btn">
+                <i class="fas fa-plus"></i>
+              </button>
+              <span id="zoomLevel">100%</span>
+              <button id="zoomOut" class="control-btn">
+                <i class="fas fa-minus"></i>
+              </button>
+              <button id="fitToScreen" class="control-btn">
+                <i class="fas fa-expand-arrows-alt"></i>
+              </button>
+              <button
+                id="panTool"
+                class="control-btn tool-btn"
+                data-tool="pan"
+                title="Pan tool"
+              >
+                <i class="fas fa-hand-paper"></i>
+              </button>
+            </div>
+            <div class="coordinates">
+              <span id="mouseCoords">x: 0, y: 0</span>
+            </div>
+          </div>
+        </main>
+      </div>
+      <!-- Progress Bar -->
+      <div class="progress-bar-container" id="progressBarContainer">
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar" id="progressBar"></div>
         </div>
+        <p id="progressBarText">Processing...</p>
+      </div>
+      <!-- Loading Overlay -->
+      <div class="loading-overlay" id="loadingOverlay" hidden>
+        <div class="loading-content">
+          <div class="spinner"></div>
+          <p id="loadingText">Processing...</p>
+        </div>
+      </div>
+
+      <!-- Toast Notifications -->
+      <div class="toast-container" id="toastContainer"></div>
+      <!-- Context Menu -->
+      <div class="context-menu" id="contextMenu" hidden>
+        <ul>
+          <li id="deleteAnnotation">
+            <i class="fas fa-trash"></i>
+            Delete Annotation
+          </li>
+          <li id="editAnnotation">
+            <i class="fas fa-edit"></i>
+            Edit Label
+          </li>
+        </ul>
+      </div>
+      <!-- Export Annotations Modal -->
+      <div class="modal" id="exportModal" hidden>
+        <div class="modal-content export-modal">
+          <div class="modal-header">
+            <h3><i class="fas fa-download"></i> Export Annotations</h3>
+            <button class="modal-close" id="closeExportModal">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="export-section">
+              <h4><i class="fas fa-images"></i> Export Scope</h4>
+              <div class="export-options">
+                <label class="export-option export-scope-option selected">
+                  <input
+                    type="radio"
+                    name="exportScope"
+                    value="current"
+                    checked
+                  />
+                  <div class="option-content">
+                    <div class="option-text">
+                      <strong
+                        ><i class="fas fa-image"></i> Current Image Only</strong
+                      >
+                      <span
+                        >Export annotations from the currently selected
+                        image</span
+                      >
+                    </div>
+                  </div>
+                </label>
+                <label class="export-option export-scope-option">
+                  <input type="radio" name="exportScope" value="all" />
+                  <div class="option-content">
+                    <div class="option-text">
+                      <strong
+                        ><i class="fas fa-layer-group"></i> All Images</strong
+                      >
+                      <span>Export annotations from all uploaded images</span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div class="export-section">
+              <h4><i class="fas fa-file-code"></i> Export Format</h4>
+              <div class="export-options">
+                <label class="export-option export-format-option selected">
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="json"
+                    checked
+                  />
+                  <div class="option-content">
+                    <div class="option-text">
+                      <strong><i class="fas fa-code"></i> JSON Format</strong>
+                      <span
+                        >Structured data with complete annotation details</span
+                      >
+                    </div>
+                  </div>
+                </label>
+                <label class="export-option export-format-option">
+                  <input type="radio" name="exportFormat" value="csv" />
+                  <div class="option-content">
+                    <div class="option-text">
+                      <strong><i class="fas fa-table"></i> CSV Format</strong>
+                      <span
+                        >Tabular data suitable for spreadsheet
+                        applications</span
+                      >
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer export-footer">
+            <button class="btn btn-secondary" id="cancelExport">Cancel</button>
+            <button class="btn btn-primary export-btn" id="confirmExport">
+              <i class="fas fa-download"></i> Export
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Label Modal -->
+      <div class="modal" id="editLabelModal" hidden>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Edit Annotation Label</h3>
+            <button class="modal-close" id="closeEditModal">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <label for="labelSelect">Select a label:</label>
+            <div class="label-dropdown-container">
+              <select id="labelSelect" class="label-select">
+                <!-- Options will be populated dynamically -->
+              </select>
+            </div>
+            <label for="customLabelEdit">Or add a new label:</label>
+            <div class="custom-label-container">
+              <input
+                type="text"
+                id="customLabelEdit"
+                placeholder="Enter new label..."
+                maxlength="20"
+              />
+              <button id="addNewLabelBtn" class="btn btn-small" type="button">
+                <i class="fas fa-plus"></i>
+                Add
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelEditLabel">
+              Cancel
+            </button>
+            <button class="btn btn-primary" id="saveEditLabel">Save</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="js/utils.js"></script>
@@ -315,5 +410,5 @@
     <script src="js/canvas.js"></script>
     <script src="js/annotations.js"></script>
     <script src="js/app.js"></script>
-</body>
+  </body>
 </html>

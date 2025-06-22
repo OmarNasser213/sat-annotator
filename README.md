@@ -17,6 +17,7 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 ## Features
 
 **Current:**
+
 - RESTful API built with FastAPI
 - Session-based in-memory storage for image metadata (no database required)
 - File upload endpoint for satellite imagery
@@ -31,6 +32,7 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 - Smart caching system for repeated segmentation operations
 
 **Planned:**
+
 - Multiple prompt types (box, points, text)
 - Manual annotation tools with intuitive UI
 - Export annotations in additional formats (Shapefile)
@@ -40,10 +42,10 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 
 - **Backend**: Python, FastAPI
 - **Storage**: Session-based in-memory storage
-- **AI Models**: 
+- **AI Models**:
   - Segment Anything Model (SAM)
   - PyTorch with CUDA support
-- **Image Processing**: 
+- **Image Processing**:
   - OpenCV
   - Pillow (PIL)
 - **Containerization**: Docker (optional)
@@ -64,33 +66,39 @@ This project is sponsored by the Egyptian Space Agency (EgSA).
 ### Quick Start with Docker (Recommended)
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/sat-annotator.git
 cd sat-annotator
 ```
 
 2. Build and run with Docker:
+
 ```bash
 docker-compose up --build
 ```
-   *Note: The SAM model will be automatically downloaded during the Docker build process.*
+
+_Note: The SAM model will be automatically downloaded during the Docker build process._
 
 3. Access the application at `http://localhost:8000`
 
 ### Local Development Setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/sat-annotator.git
 cd sat-annotator
 ```
 
 2. Download the SAM model (required for local development):
+
    - Download the SAM model checkpoint: [sam_vit_h_4b8939.pth](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)
    - Create a `models/` directory in the project root if it doesn't exist
    - Place the downloaded file in the `models/` directory
 
 3. Set up Python environment:
+
 ```bash
 # Create and activate a virtual environment
 python -m venv venv
@@ -101,15 +109,17 @@ pip install -r app/requirements.txt
 pip install git+https://github.com/facebookresearch/segment-anything.git
 ```
 
-   **Note on PyTorch versions:**
-   - `requirements.txt`: Contains CUDA version of PyTorch for local development with GPU acceleration
-   - `requirements-ci.txt`: Contains CPU version of PyTorch for CI/testing environments
-   - If you don't have CUDA support, install PyTorch CPU version first:
-     ```bash
-     pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https://download.pytorch.org/whl/cpu
-     ```
+**Note on PyTorch versions:**
+
+- `requirements.txt`: Contains CUDA version of PyTorch for local development with GPU acceleration
+- `requirements-ci.txt`: Contains CPU version of PyTorch for CI/testing environments
+- If you don't have CUDA support, install PyTorch CPU version first:
+  ```bash
+  pip install torch==2.5.1+cpu torchvision==0.20.1+cpu --index-url https://download.pytorch.org/whl/cpu
+  ```
 
 4. Run the application:
+
 ```bash
 uvicorn app.main:app --reload
 ```
@@ -121,6 +131,7 @@ uvicorn app.main:app --reload
 The frontend is served directly by the FastAPI backend as static files. No separate Node.js setup is required.
 
 **Docker vs Local Development:**
+
 - **Docker**: SAM model downloads automatically during build process
 - **Local Development**: Manual model download required (as shown above)
 
@@ -183,7 +194,7 @@ sat-annotator/
 These directories are created automatically by the application:
 
 - **`uploads/`**: Stores user-uploaded satellite images
-- **`annotations/`**: Stores AI-generated and manual annotation JSON files  
+- **`annotations/`**: Stores AI-generated and manual annotation JSON files
 - **`logs/`** & **`app/logs/`**: Application log files for debugging
 - **`models/`**: Contains the SAM AI model (auto-downloaded in Docker)
 
@@ -209,11 +220,13 @@ These directories are created automatically by the application:
 The application provides a comprehensive REST API for programmatic access:
 
 #### Health Check
+
 ```bash
 curl http://localhost:8000/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "healthy"
@@ -223,16 +236,19 @@ Expected response:
 #### Session Management
 
 ##### Get Session Information
+
 ```bash
 curl http://localhost:8000/api/session-info/
 ```
 
 ##### Clear Session Data
+
 ```bash
 curl -X DELETE http://localhost:8000/api/session/
 ```
 
 ##### Export Session Data
+
 ```bash
 curl -X POST http://localhost:8000/api/export-session/
 ```
@@ -240,6 +256,7 @@ curl -X POST http://localhost:8000/api/export-session/
 #### Image Management
 
 ##### Upload an Image
+
 ```bash
 curl -X POST http://localhost:8000/api/upload-image/ \
   -H "Content-Type: multipart/form-data" \
@@ -247,6 +264,7 @@ curl -X POST http://localhost:8000/api/upload-image/ \
 ```
 
 Expected response:
+
 ```json
 {
   "success": true,
@@ -264,16 +282,19 @@ Expected response:
 ```
 
 ##### Retrieve All Images
+
 ```bash
 curl http://localhost:8000/api/images/
 ```
 
 ##### Get Specific Image
+
 ```bash
 curl http://localhost:8000/api/images/{image_id}/
 ```
 
 ##### Delete Image and Annotations
+
 ```bash
 curl -X DELETE http://localhost:8000/api/images/{image_id}
 ```
@@ -281,6 +302,7 @@ curl -X DELETE http://localhost:8000/api/images/{image_id}
 #### AI Segmentation
 
 ##### Preprocess Image for Segmentation
+
 ```bash
 curl -X POST http://localhost:8000/api/preprocess/ \
   -H "Content-Type: application/json" \
@@ -288,6 +310,7 @@ curl -X POST http://localhost:8000/api/preprocess/ \
 ```
 
 ##### Generate Point-Based Segmentation
+
 ```bash
 curl -X POST http://localhost:8000/api/segment/ \
   -H "Content-Type: application/json" \
@@ -300,10 +323,16 @@ curl -X POST http://localhost:8000/api/segment/ \
 ```
 
 Expected response:
+
 ```json
 {
   "success": true,
-  "polygon": [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4], [0.1, 0.4]],
+  "polygon": [
+    [0.1, 0.2],
+    [0.3, 0.2],
+    [0.3, 0.4],
+    [0.1, 0.4]
+  ],
   "annotation_id": "annotation-uuid",
   "label": "Building",
   "confidence": 0.92
@@ -313,6 +342,7 @@ Expected response:
 #### Annotation Management
 
 ##### Create Manual Annotation
+
 ```bash
 curl -X POST http://localhost:8000/api/annotations/ \
   -H "Content-Type: application/json" \
@@ -325,6 +355,7 @@ curl -X POST http://localhost:8000/api/annotations/ \
 ```
 
 ##### Update Annotation
+
 ```bash
 curl -X PUT http://localhost:8000/api/annotations/{annotation_id} \
   -H "Content-Type: application/json" \
@@ -335,11 +366,13 @@ curl -X PUT http://localhost:8000/api/annotations/{annotation_id} \
 ```
 
 ##### Delete Annotation
+
 ```bash
 curl -X DELETE http://localhost:8000/api/annotations/{annotation_id}
 ```
 
 ##### Get Image Annotations
+
 ```bash
 curl http://localhost:8000/api/annotations/{image_id}
 ```
@@ -347,11 +380,13 @@ curl http://localhost:8000/api/annotations/{image_id}
 ### Testing the API
 
 #### Root Endpoint
+
 ```bash
 curl http://localhost:8000/
 ```
 
 Expected response:
+
 ```json
 {
   "message": "Welcome to the Satellite Image Annotation Tool"
@@ -362,24 +397,25 @@ For comprehensive API examples, see the **API Reference** section above.
 
 ## API Documentation
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check for container orchestration |
-| `/api/upload-image/` | POST | Upload satellite imagery (TIFF, PNG, JPG) |
-| `/api/images/` | GET | Retrieve all uploaded images |
-| `/api/images/{id}/` | GET | Get specific image by ID |
-| `/api/images/{id}` | DELETE | Delete image and associated annotations |
-| `/api/preprocess/` | POST | Prepare image for AI segmentation |
-| `/api/segment/` | POST | Generate AI segmentation from point |
-| `/api/annotations/` | POST | Create manual annotation |
-| `/api/annotations/{id}` | PUT | Update existing annotation |
-| `/api/annotations/{id}` | DELETE | Delete annotation |
-| `/api/annotations/{image_id}` | GET | Get all annotations for image |
-| `/api/session-info/` | GET | Get current session information |
-| `/api/session/` | DELETE | Clear all session data |
-| `/api/export-session/` | POST | Export session data as JSON |
+| Endpoint                      | Method | Description                               |
+| ----------------------------- | ------ | ----------------------------------------- |
+| `/health`                     | GET    | Health check for container orchestration  |
+| `/api/upload-image/`          | POST   | Upload satellite imagery (TIFF, PNG, JPG) |
+| `/api/images/`                | GET    | Retrieve all uploaded images              |
+| `/api/images/{id}/`           | GET    | Get specific image by ID                  |
+| `/api/images/{id}`            | DELETE | Delete image and associated annotations   |
+| `/api/preprocess/`            | POST   | Prepare image for AI segmentation         |
+| `/api/segment/`               | POST   | Generate AI segmentation from point       |
+| `/api/annotations/`           | POST   | Create manual annotation                  |
+| `/api/annotations/{id}`       | PUT    | Update existing annotation                |
+| `/api/annotations/{id}`       | DELETE | Delete annotation                         |
+| `/api/annotations/{image_id}` | GET    | Get all annotations for image             |
+| `/api/session-info/`          | GET    | Get current session information           |
+| `/api/session/`               | DELETE | Clear all session data                    |
+| `/api/export-session/`        | POST   | Export session data as JSON               |
 
 **Interactive Documentation:**
+
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
@@ -393,6 +429,7 @@ The application uses session-based in-memory storage for temporary data manageme
 - **Temporary Files**: Session data is cleared when the application restarts
 
 Benefits:
+
 - No database setup required for quick deployment
 - Simplified development and testing
 - Stateless application design
@@ -424,4 +461,4 @@ Created by ...
 
 ---
 
-*Note: This project is under active development. Features and API endpoints are subject to change.*
+_Note: This project is under active development. Features and API endpoints are subject to change._

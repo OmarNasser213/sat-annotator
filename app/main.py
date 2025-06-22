@@ -19,21 +19,24 @@ if app_dir not in sys.path:
 try:
     # For uvicorn from root directory
     from app.routers import session_images, session_segmentation
+
     logger.info("Using app.routers imports")
 except ImportError:
     try:
         # For running directly from app directory
         from routers import session_images, session_segmentation
+
         logger.info("Using direct routers imports")
     except ImportError as e:
         logger.error(f"Import error: {e}")
         # Final fallback - try with explicit path manipulation
         sys.path.insert(0, os.path.dirname(app_dir))
         from app.routers import session_images, session_segmentation
+
         logger.info("Using fallback app.routers imports")
 
 # Determine if we're running in Docker or locally
-in_docker = os.path.exists('/.dockerenv')
+in_docker = os.path.exists("/.dockerenv")
 
 # Set paths based on environment
 base_path = Path("/app") if in_docker else Path(".")
@@ -60,10 +63,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Health check endpoint for Docker container orchestration
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
 
 # Include session-based routers
 app.include_router(session_images.router, prefix="/api", tags=["images"])
@@ -76,10 +81,16 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 if frontend_dir.exists() and (frontend_dir / "index.html").exists():
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 else:
+
     @app.get("/")
     def read_root():
-        return {"message": "Welcome to the Satellite Image Annotation Tool (API Only Mode)"}
-        
+        return {
+            "message": "Welcome to the Satellite Image Annotation Tool (API Only Mode)"
+        }
+
     @app.get("/frontend-status")
     def frontend_status():
-        return {"status": "not_mounted", "message": "Frontend not found. Make sure the web directory contains index.html."}
+        return {
+            "status": "not_mounted",
+            "message": "Frontend not found. Make sure the web directory contains index.html.",
+        }
