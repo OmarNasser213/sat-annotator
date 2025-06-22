@@ -21,10 +21,9 @@
                     <button id="mobileMenuBtn" class="btn btn-secondary mobile-only">
                         <i class="fas fa-bars"></i>
                         Menu
-                    </button>
-                    <button id="exportBtn" class="btn btn-secondary" disabled>
+                    </button>                    <button id="exportBtn" class="btn btn-secondary" disabled>
                         <i class="fas fa-download"></i>
-                        Export JSON
+                        Export
                     </button>
                     <button id="clearAnnotations" class="btn btn-danger" disabled>
                         <i class="fas fa-trash"></i>
@@ -212,7 +211,73 @@
                     <i class="fas fa-edit"></i>
                     Edit Label
                 </li>
-            </ul>        </div>        <!-- Edit Label Modal -->
+            </ul>        </div>        <!-- Export Annotations Modal -->
+        <div class="modal" id="exportModal" hidden>
+            <div class="modal-content export-modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-download"></i> Export Annotations</h3>
+                    <button class="modal-close" id="closeExportModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="export-section">
+                        <h4><i class="fas fa-images"></i> Export Scope</h4>
+                        <div class="export-options">
+                            <label class="export-option export-scope-option selected">
+                                <input type="radio" name="exportScope" value="current" checked>
+                                <div class="option-content">
+                                    <div class="option-text">
+                                        <strong><i class="fas fa-image"></i> Current Image Only</strong>
+                                        <span>Export annotations from the currently selected image</span>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="export-option export-scope-option">
+                                <input type="radio" name="exportScope" value="all">
+                                <div class="option-content">
+                                    <div class="option-text">
+                                        <strong><i class="fas fa-layer-group"></i> All Images</strong>
+                                        <span>Export annotations from all uploaded images</span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>                      
+                    <div class="export-section">
+                        <h4><i class="fas fa-file-code"></i> Export Format</h4>
+                        <div class="export-options">
+                            <label class="export-option export-format-option selected">
+                                <input type="radio" name="exportFormat" value="json" checked>
+                                <div class="option-content">
+                                    <div class="option-text">
+                                        <strong><i class="fas fa-code"></i> JSON Format</strong>
+                                        <span>Structured data with complete annotation details</span>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="export-option export-format-option">
+                                <input type="radio" name="exportFormat" value="csv">
+                                <div class="option-content">
+                                    <div class="option-text">
+                                        <strong><i class="fas fa-table"></i> CSV Format</strong>
+                                        <span>Tabular data suitable for spreadsheet applications</span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>                
+                </div>
+                <div class="modal-footer export-footer">
+                    <button class="btn btn-secondary" id="cancelExport">Cancel</button>
+                    <button class="btn btn-primary export-btn" id="confirmExport">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Label Modal -->
         <div class="modal" id="editLabelModal" hidden>
             <div class="modal-content">
                 <div class="modal-header">

@@ -14,7 +14,7 @@ class AnnotationManager {    constructor() {
         } catch (error) {
             console.error('AnnotationManager: Initialization failed:', error);
         }
-    }setupEventListeners() {
+    }    setupEventListeners() {
         // Set up label selection events with event delegation for dynamic buttons
         document.getElementById('labelList').addEventListener('click', (e) => {
             const btn = e.target.closest('.label-btn');
@@ -36,7 +36,22 @@ class AnnotationManager {    constructor() {
         document.getElementById('editAnnotation').addEventListener('click', () => this.editSelectedAnnotation());
         
         // Hide context menu when clicking elsewhere
-        document.addEventListener('click', () => this.hideContextMenu());
+        document.addEventListener('click', () => this.hideContextMenu());        // Export Modal Events
+        const closeExportModal = document.getElementById('closeExportModal');
+        const cancelExport = document.getElementById('cancelExport');
+        const confirmExport = document.getElementById('confirmExport');
+        
+        if (closeExportModal) {
+            closeExportModal.addEventListener('click', () => this.closeExportModal());
+        }
+        if (cancelExport) {
+            cancelExport.addEventListener('click', () => this.closeExportModal());
+        }
+        if (confirmExport) {
+            confirmExport.addEventListener('click', () => this.performExport());
+        }
+        
+        // Export option selection handlers will be added dynamically in showExportModal
 
         // Edit Label Modal Events
         document.getElementById('closeEditModal').addEventListener('click', () => this.closeEditLabelModal());
@@ -67,12 +82,25 @@ class AnnotationManager {    constructor() {
             if (e.key === 'Enter') {
                 this.saveEditedLabel();
             }
-        });
-        
-        // Close modal on Escape key
+        });          // Close modal on Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !document.getElementById('editLabelModal').hidden) {
-                this.closeEditLabelModal();
+            if (e.key === 'Escape') {
+                const editModal = document.getElementById('editLabelModal');
+                const exportModal = document.getElementById('exportModal');
+                
+                // Check if export modal is visible and open
+                if (exportModal && exportModal.classList.contains('show')) {
+                    e.preventDefault();
+                    this.closeExportModal();
+                    return;
+                }
+                
+                // Check if edit modal is visible and open
+                if (editModal && editModal.classList.contains('show')) {
+                    e.preventDefault();
+                    this.closeEditLabelModal();
+                    return;
+                }
             }
         });
     }async setCurrentImage(imageId) {
@@ -706,28 +734,147 @@ class AnnotationManager {    constructor() {
             Utils.showToast('All annotations cleared', 'success');
         }
     }    async exportAnnotations() {
-        // Check if there are multiple images
-        const hasMultipleImages = window.satAnnotator && window.satAnnotator.images && window.satAnnotator.images.length > 1;
-        
-        if (hasMultipleImages) {
-            // Show dialog to choose export scope
-            const exportAll = confirm(
-                `You have ${window.satAnnotator.images.length} images loaded.\n\n` +
-                'Click "OK" to export annotations from ALL images\n' +
-                'Click "Cancel" to export only the current image\'s annotations'
-            );
-            
-            if (exportAll) {
-                await this.exportAllImages();
-                return;
-            }
+        // Show the export modal instead of directly exporting
+        this.showExportModal();
+    }    showExportModal() {
+        const modal = document.getElementById('exportModal');
+        if (!modal) {
+            console.error('Export modal not found!');
+            return;
         }
         
-        // Export current image only
-        await this.exportCurrentImage();
+        // Remove any existing event listeners to prevent duplicates
+        const existingScopeOptions = modal.querySelectorAll('.export-scope-option');
+        const existingFormatOptions = modal.querySelectorAll('.export-format-option');
+        
+        // Clone and replace scope options to remove old listeners
+        existingScopeOptions.forEach(option => {
+            const newOption = option.cloneNode(true);
+            option.parentNode.replaceChild(newOption, option);
+        });
+        
+        // Clone and replace format options to remove old listeners
+        existingFormatOptions.forEach(option => {
+            const newOption = option.cloneNode(true);
+            option.parentNode.replaceChild(newOption, option);
+        });
+        
+        // Add fresh click listeners to export scope options
+        const scopeOptions = modal.querySelectorAll('.export-scope-option');
+        scopeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                const radio = option.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    this.updateExportScopeSelection();
+                }
+            });
+        });
+        
+        // Add fresh click listeners to export format options
+        const formatOptions = modal.querySelectorAll('.export-format-option');
+        formatOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                const radio = option.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    this.updateExportFormatSelection();
+                }
+            });
+        });
+        
+        // Add change listeners to radio buttons
+        const radioButtons = modal.querySelectorAll('input[type="radio"]');
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.name === 'exportScope') {
+                    this.updateExportScopeSelection();
+                } else if (radio.name === 'exportFormat') {
+                    this.updateExportFormatSelection();
+                }
+            });
+        });
+        
+        // Update selection visual state
+        this.updateExportScopeSelection();
+        this.updateExportFormatSelection();        // Show modal
+        modal.classList.add('show');
+        modal.removeAttribute('hidden');
+        
+        // Focus on the modal for keyboard accessibility and ESC key handling
+        modal.setAttribute('tabindex', '-1');
+        modal.focus();
+        
+        // Add dedicated ESC key handler for this modal
+        const handleModalKeydown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeExportModal();
+                modal.removeEventListener('keydown', handleModalKeydown);
+            }
+        };
+        modal.addEventListener('keydown', handleModalKeydown);
+    }closeExportModal() {
+        const modal = document.getElementById('exportModal');
+        if (modal) {
+            modal.classList.remove('show');
+            modal.setAttribute('hidden', 'true');
+        }
+    }updateExportScopeSelection() {
+        // Update visual selection for scope options
+        const scopeOptions = document.querySelectorAll('#exportModal .export-scope-option');
+        scopeOptions.forEach(option => {
+            const radio = option.querySelector('input[type="radio"]');
+            if (radio) {
+                if (radio.checked) {
+                    option.classList.add('selected');
+                } else {
+                    option.classList.remove('selected');
+                }
+            }
+        });
     }
 
-    async exportCurrentImage() {
+    updateExportFormatSelection() {
+        // Update visual selection for format options
+        const formatOptions = document.querySelectorAll('#exportModal .export-format-option');
+        formatOptions.forEach(option => {
+            const radio = option.querySelector('input[type="radio"]');
+            if (radio) {
+                if (radio.checked) {
+                    option.classList.add('selected');
+                } else {
+                    option.classList.remove('selected');
+                }
+            }
+        });
+    }
+
+    async performExport() {
+        const scopeRadio = document.querySelector('input[name="exportScope"]:checked');
+        const formatRadio = document.querySelector('input[name="exportFormat"]:checked');
+        
+        if (!scopeRadio || !formatRadio) {
+            Utils.showToast('Please select export options', 'warning');
+            return;
+        }
+
+        const scope = scopeRadio.value; // 'current' or 'all'
+        const format = formatRadio.value; // 'json' or 'csv'
+
+        this.closeExportModal();
+
+        if (scope === 'all') {
+            await this.exportAllImages(format);
+        } else {
+            await this.exportCurrentImage(format);
+        }
+    }
+
+    async exportCurrentImage(format = 'json') {
         if (this.annotations.length === 0) {
             Utils.showToast('No annotations to export for current image', 'warning');
             return;
@@ -740,7 +887,8 @@ class AnnotationManager {    constructor() {
                 resolution: window.canvasManager.currentImage?.resolution || 'unknown',
                 width: window.canvasManager.imageElement?.naturalWidth || 0,
                 height: window.canvasManager.imageElement?.naturalHeight || 0
-            },            annotations: this.annotations.map((ann, index) => ({
+            },
+            annotations: this.annotations.map((ann, index) => ({
                 number: index + 1,
                 id: ann.id,
                 type: ann.type,
@@ -751,7 +899,7 @@ class AnnotationManager {    constructor() {
                 points_count: ann.polygon.length
             })),
             export_info: {
-                format: 'json',
+                format: format,
                 exported_at: new Date().toISOString(),
                 tool: 'SAT Annotator',
                 version: '1.0.0',
@@ -765,11 +913,16 @@ class AnnotationManager {    constructor() {
             }
         };
 
-        this.downloadJSON(exportData, `annotations_${this.currentImageId}.json`);
-        Utils.showToast(`Exported ${this.annotations.length} annotations for current image`, 'success');
+        if (format === 'csv') {
+            this.downloadCSV(exportData, `annotations_${this.currentImageId}.csv`);
+        } else {
+            this.downloadJSON(exportData, `annotations_${this.currentImageId}.json`);
+        }
+        
+        Utils.showToast(`Exported ${this.annotations.length} annotations for current image as ${format.toUpperCase()}`, 'success');
     }
 
-    async exportAllImages() {
+    async exportAllImages(format = 'json') {
         if (!window.satAnnotator || !window.satAnnotator.images || window.satAnnotator.images.length === 0) {
             Utils.showToast('No images available', 'warning');
             return;
@@ -847,14 +1000,16 @@ class AnnotationManager {    constructor() {
             if (totalAnnotations === 0) {
                 Utils.showToast('No annotations found across all images', 'warning');
                 return;
-            }            const exportData = {
+            }
+
+            const exportData = {
                 images: imageData,
                 annotations: allAnnotations.map((ann, index) => ({
                     number: index + 1,
                     ...ann
                 })),
                 export_info: {
-                    format: 'json',
+                    format: format,
                     exported_at: new Date().toISOString(),
                     tool: 'SAT Annotator',
                     version: '1.0.0',
@@ -876,15 +1031,66 @@ class AnnotationManager {    constructor() {
                 }
             };
 
-            this.downloadJSON(exportData, `annotations_all_images_${new Date().toISOString().split('T')[0]}.json`);
-            Utils.showToast(`Exported ${totalAnnotations} annotations from ${imageData.length} images`, 'success');
+            const filename = `annotations_all_images_${new Date().toISOString().split('T')[0]}`;
+            
+            if (format === 'csv') {
+                this.downloadCSV(exportData, `${filename}.csv`);
+            } else {
+                this.downloadJSON(exportData, `${filename}.json`);
+            }
+            
+            Utils.showToast(`Exported ${totalAnnotations} annotations from ${imageData.length} images as ${format.toUpperCase()}`, 'success');
 
         } catch (error) {
             Utils.hideLoading();
             console.error('Failed to export all annotations:', error);
             Utils.showToast('Failed to export all annotations: ' + error.message, 'error');
         }
-    }    downloadJSON(data, filename) {
+    }
+
+    downloadCSV(data, filename) {
+        let csvContent = '';
+        
+        if (data.export_info.scope === 'all_images') {
+            // CSV headers for all images export
+            csvContent = 'Number,ID,Image ID,Image Filename,Type,Label,Source,Created,Points Count,Polygon Coordinates\n';
+            
+            // Add data rows
+            data.annotations.forEach(ann => {
+                const polygonStr = ann.polygon.map(point => `${point[0]},${point[1]}`).join(';');
+                csvContent += `${ann.number},"${ann.id}","${ann.image_id}","${ann.image_filename}","${ann.type}","${ann.label}","${ann.source}","${ann.created}",${ann.points_count},"${polygonStr}"\n`;
+            });
+        } else {
+            // CSV headers for single image export
+            csvContent = 'Number,ID,Type,Label,Source,Created,Points Count,Polygon Coordinates\n';
+            
+            // Add data rows
+            data.annotations.forEach(ann => {
+                const polygonStr = ann.polygon.map(point => `${point[0]},${point[1]}`).join(';');
+                csvContent += `${ann.number},"${ann.id}","${ann.type}","${ann.label}","${ann.source}","${ann.created}",${ann.points_count},"${polygonStr}"\n`;
+            });
+        }
+        
+        // Add metadata as comments (if desired)
+        const metadata = `# Exported from SAT Annotator on ${data.export_info.exported_at}\n` +
+                        `# Total annotations: ${data.statistics.total_annotations}\n` +
+                        `# AI generated: ${data.statistics.ai_generated}\n` +
+                        `# Manual: ${data.statistics.manual}\n` +
+                        `# Unique labels: ${data.statistics.unique_labels}\n\n`;
+        
+        csvContent = metadata + csvContent;
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        
+        const downloadLink = document.createElement('a');
+        downloadLink.href = url;
+        downloadLink.download = filename;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(url);
+    }downloadJSON(data, filename) {
         const dataStr = JSON.stringify(data, null, 2);
         const blob = new Blob([dataStr], {type: 'application/json'});
         const url = URL.createObjectURL(blob);

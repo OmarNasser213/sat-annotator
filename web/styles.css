@@ -962,16 +962,29 @@ body {
     display: flex;
 }
 
+.modal:focus {
+    outline: none;
+}
+
 .modal-content {
     background: white;
     border-radius: 12px;
     width: 90%;
-    max-width: 380px;
-    min-height: 320px;
-    max-height: 80vh;
+    max-width: 500px;
+    max-height: 75vh;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
     border: 1px solid #f1f5f9;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Override for export modal specifically */
+.modal-content.export-modal {
+    max-height: 98vh !important;
+    max-width: 420px !important;
+    width: 90% !important;
 }
 
 .modal-header {
@@ -980,6 +993,7 @@ body {
     align-items: center;
     padding: 1.5rem 2rem 1.25rem;
     background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -1010,8 +1024,9 @@ body {
 }
 
 .modal-body {
-    padding: 1.5rem 2rem;
-    min-height: 220px;
+    padding: 1.5rem 2rem 0.5rem;
+    flex: 1;
+    overflow-y: auto;
 }
 
 .modal-body label {
@@ -1046,6 +1061,8 @@ body {
     padding: 1.25rem 2rem 1.5rem;
     background: #fafbfc;
     border-top: 1px solid #f1f5f9;
+    flex-shrink: 0;
+    min-height: 70px;
 }
 
 .modal-footer .btn {
@@ -1073,6 +1090,9 @@ body {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
     box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .modal-footer .btn-primary:hover {
@@ -1418,5 +1438,250 @@ body {
     .btn {
         justify-content: center;
         width: 100%;
+    }
+}
+
+/* Export Modal Styles */
+.modal-content.export-modal {
+    max-width: 480px !important;
+    width: 90% !important;
+    max-height: fit-content !important;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    border: 1px solid #f1f5f9;
+}
+
+.modal-content.export-modal .modal-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    padding: 1rem 1.5rem 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+    border-radius: 12px 12px 0 0;
+}
+
+.modal-content.export-modal .modal-header h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-content.export-modal .modal-close {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    color: #94a3b8;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.modal-content.export-modal .modal-close:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.modal-content.export-modal .modal-body {
+    padding: 1.25rem 1.5rem 0.5rem;
+    flex: 1;
+    overflow: visible;
+    min-height: 0;
+}
+
+.export-section {
+    margin-bottom: 1rem;
+}
+
+.export-section:last-child {
+    margin-bottom: 0.5rem !important;
+}
+
+.export-section h4 {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.375rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.export-section h4 i {
+    font-size: 0.8125rem;
+    color: #3b82f6;
+}
+
+.export-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.export-option {
+    display: flex;
+    align-items: flex-start;
+    padding: 0.625rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #ffffff;
+}
+
+.export-option:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    transform: translateY(-1px);
+}
+
+.export-option.selected {
+    border-color: #3b82f6;
+    background: #dbeafe;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.export-option input[type="radio"] {
+    margin: 1px 0.625rem 0 0;
+    width: 16px;
+    height: 16px;
+    accent-color: #3b82f6;
+    flex-shrink: 0;
+}
+
+.option-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.option-content .option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.option-content .option-text strong {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #1f2937;
+    margin: 0;
+}
+
+.option-content .option-text strong i {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.export-option.selected .option-content .option-text strong {
+    color: #1d4ed8;
+}
+
+.export-option.selected .option-content .option-text strong i {
+    color: #1d4ed8;
+}
+
+.option-content .option-text span {
+    font-size: 0.6875rem;
+    color: #64748b;
+    line-height: 1.4;
+    margin: 0;
+    display: block;
+}
+
+.modal-content.export-modal .export-footer {
+    background: #fafbfc;
+    border-top: 1px solid #f1f5f9;
+    padding: 0.875rem 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    border-radius: 0 0 12px 12px;
+    min-height: auto;
+}
+
+.modal-content.export-modal .export-footer .btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: auto;
+    justify-content: center;
+}
+
+.modal-content.export-modal .export-footer .btn-secondary {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.modal-content.export-modal .export-footer .btn-secondary:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.modal-content.export-modal .export-footer .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.modal-content.export-modal .export-footer .btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Mobile responsiveness for export modal */
+@media (max-width: 640px) {
+    .export-modal {
+        width: 95%;
+        max-width: none;
+        margin: 1rem;
+    }
+    
+    .export-modal .modal-header {
+        padding: 16px 20px 12px;
+    }
+    
+    .export-modal .modal-body {
+        padding: 20px;
+    }
+    
+    .export-footer {
+        padding: 16px 20px;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .export-footer .btn {
+        width: 100%;
+        min-width: auto;
     }
 }
