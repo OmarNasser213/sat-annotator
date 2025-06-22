@@ -309,12 +309,11 @@ class Utils {
             console.error('Loading text element not found!');
             return;
         }
-        
-        text.textContent = message;
+          text.textContent = message;
         overlay.style.display = 'flex';
         overlay.hidden = false;
-        console.log('Loading overlay shown successfully');
-    }    // Hide loading
+        console.log('Loading overlay displayed');
+    }// Hide loading
     static hideLoading() {
         console.log('Utils.hideLoading called');
         const overlay = document.getElementById('loadingOverlay');
@@ -327,18 +326,11 @@ class Utils {
         // Try multiple methods to ensure it's hidden
         overlay.style.display = 'none';
         overlay.style.visibility = 'hidden';
-        overlay.style.opacity = '0';
-        overlay.hidden = true;
+        overlay.style.opacity = '0';        overlay.hidden = true;
         overlay.classList.add('hidden');
         
-        // Debug: Check if it's actually hidden
-        const computedStyle = window.getComputedStyle(overlay);
-        console.log('Loading overlay hidden successfully');
-        console.log('Overlay display style:', overlay.style.display);
-        console.log('Overlay hidden attribute:', overlay.hidden);
-        console.log('Computed display:', computedStyle.display);
-        console.log('Computed visibility:', computedStyle.visibility);
-        console.log('Computed opacity:', computedStyle.opacity);    }
+        console.log('Loading overlay hidden');
+    }
 
     // Show toast notification
     static showToast(message, type = 'success', duration = 3000) {

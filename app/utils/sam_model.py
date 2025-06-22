@@ -64,7 +64,9 @@ class SAMSegmenter:
             image = cv2.imread(image_path)
             if image is None:
                 raise ValueError(f"Could not load image from {image_path}")
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)            # Check if we have cached embeddings for this image
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Check if we have cached embeddings for this image
             if image_path in self.cache:
                 logger.debug(f"Found cached embeddings for {Path(image_path).name}")
                 
@@ -76,7 +78,7 @@ class SAMSegmenter:
                     self.current_image_path = image_path
                     self._last_set_image = image_path
                 else:
-                    logger.debug(f"Image already loaded - instant segmentation ready!")
+                    logger.debug(f"Image already loaded in predictor - embeddings cached")
                 
                 return self.cache[image_path]['image_size']
             

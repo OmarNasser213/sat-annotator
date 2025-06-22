@@ -103,9 +103,9 @@ class AnnotationManager {    constructor() {
                 }
             }
         });
-    }async setCurrentImage(imageId) {
-        console.log(`🔍 setCurrentImage called with: ${imageId}`);
-        console.log(`🔍 Previous currentImageId: ${this.currentImageId}`);
+    }    async setCurrentImage(imageId) {
+        console.log(`setCurrentImage called with: ${imageId}`);
+        console.log(`Previous currentImageId: ${this.currentImageId}`);
         
         // Save any existing annotations for the current image before switching
         if (this.currentImageId && this.annotations.length > 0) {
@@ -119,7 +119,7 @@ class AnnotationManager {    constructor() {
         }
         
         this.currentImageId = imageId;
-        console.log(`🔍 currentImageId set to: ${this.currentImageId}`);
+        console.log(`currentImageId set to: ${this.currentImageId}`);
         this.annotations = [];
         this.selectedAnnotation = null;
         this.updateUI();
@@ -667,12 +667,12 @@ class AnnotationManager {    constructor() {
                 // Delete from backend first
                 console.log('Calling API to delete annotation:', id);
                 await api.deleteAnnotation(id);
-                console.log('Backend deletion successful for:', id);
+                console.log('Annotation deleted from backend:', id);
                 
                 // Only remove from frontend if backend deletion succeeds
                 this.removeAnnotation(id);
                 window.canvasManager.redraw();
-                console.log('Frontend cleanup completed for:', id);
+                console.log('Annotation cleanup completed for ID:', id);
             } catch (error) {
                 // If backend deletion fails, show error but don't remove from frontend
                 console.error('Failed to delete annotation from backend:', error);
@@ -1117,7 +1117,7 @@ class AnnotationManager {    constructor() {
             if (!window.canvasManager.imageElement || !window.canvasManager.currentImage) {
                 return;
             }            // Critical fix: ensure annotations are only drawn for the current image
-            console.log(`🔍 Checking image match - currentImageId: ${this.currentImageId}, canvas image: ${window.canvasManager.currentImage?.image_id}`);
+            console.log(`Checking image match - currentImageId: ${this.currentImageId}, canvas image: ${window.canvasManager.currentImage?.image_id}`);
             if (window.canvasManager.currentImage.image_id !== this.currentImageId) {
                 console.warn(`Canvas image mismatch: expected ${this.currentImageId}, got ${window.canvasManager.currentImage.image_id}. Synchronizing...`);
                 // CRITICAL FIX: Prevent infinite sync loops - only sync once
@@ -1127,10 +1127,9 @@ class AnnotationManager {    constructor() {
                         this.setCurrentImage(window.canvasManager.currentImage.image_id);
                         this._syncInProgress = false;
                     }, 0);
-                    return;
-                } else {
+                    return;                } else {
                     // If currentImageId is null or sync in progress, just set it without reloading annotations
-                    console.log('🔧 Setting currentImageId without reloading annotations');
+                    console.log('Setting currentImageId without reloading annotations');
                     this.currentImageId = window.canvasManager.currentImage.image_id;
                 }
             }

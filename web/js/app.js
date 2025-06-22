@@ -34,10 +34,9 @@ class SATAnnotator {    constructor() {
             // Show loading immediately
             Utils.showLoading('Initializing...');
             console.log('Loading overlay shown');
-            
-            // Clear any existing session to ensure fresh start
+              // Clear any existing session to ensure fresh start
             await api.clearSession();
-            console.log('Session cleared, starting fresh');              // Reset application state
+            console.log('Session cleared, starting fresh initialization');              // Reset application state
             this.images = [];
             this.currentImageId = null;
             this.hasUnsavedWork = false;
@@ -47,7 +46,8 @@ class SATAnnotator {    constructor() {
             console.log('Initializing Canvas Manager...');
             try {
                 window.canvasManager = new CanvasManager();
-                console.log('Canvas Manager initialized successfully');
+            console.log('Application started successfully');
+            console.log('Canvas Manager initialized successfully');
             } catch (error) {
                 console.error('Canvas Manager failed:', error);
                 throw new Error('Canvas Manager initialization failed: ' + error.message);
@@ -59,17 +59,15 @@ class SATAnnotator {    constructor() {
             } catch (error) {
                 console.error('Annotation Manager failed:', error);
                 throw new Error('Annotation Manager initialization failed: ' + error.message);
-            }
-
-            // Reset UI to initial state
-            console.log('Step 3.5: Resetting UI to initial state...');
+            }            // Reset UI to initial state
+            console.log('Resetting UI to initial state...');
             this.resetUI();
-            console.log('Step 3.5: UI reset complete');
+            console.log('UI reset completed');
             
             // Setup event listeners            console.log('Setting up event listeners...');
             try {
                 this.setupEventListeners();
-                console.log('Event listeners setup complete');
+                console.log('Event listeners configured successfully');
             } catch (error) {
                 console.error('Event listeners setup failed:', error);
                 throw new Error('Event listeners setup failed: ' + error.message);
@@ -78,7 +76,7 @@ class SATAnnotator {    constructor() {
             console.log('Checking server status...');
             try {
                 await this.checkServerStatus();
-                console.log('Server status check complete');
+                console.log('Server connectivity verified');
             } catch (error) {
                 console.error('Server status check failed:', error);
                 throw new Error('Server status check failed: ' + error.message);
@@ -88,7 +86,7 @@ class SATAnnotator {    constructor() {
             console.log('Loading images...');
             try {
                 await this.loadImages();
-                console.log('Images loading complete');
+                console.log('Image data loaded successfully');
             } catch (error) {
                 console.error('Images loading failed:', error);
                 throw new Error('Images loading failed: ' + error.message);
@@ -105,15 +103,12 @@ class SATAnnotator {    constructor() {
                     console.log('Force hidden loading overlay');
                 }
             }, 100);
-            
-            Utils.showToast('SAT Annotator ready!', 'success');
-            console.log('SAT Annotator Initialization Complete');
-            
-        } catch (error) {
-            console.error('INITIALIZATION FAILED');
-            console.error('Error:', error);
-            console.error('Error message:', error.message);
-            console.error('Error stack:', error.stack);
+              Utils.showToast('SAT Annotator ready!', 'success');
+            console.log('SAT Annotator initialization completed successfully');
+              } catch (error) {
+            console.error('Application initialization failed');
+            console.error('Error details:', error.message);
+            console.error('Stack trace:', error.stack);
             
             // Make sure loading is hidden even on error
             Utils.hideLoading();
@@ -182,7 +177,7 @@ class SATAnnotator {    constructor() {
         };
         
         window.addEventListener('beforeunload', beforeUnloadHandler);
-        console.log('beforeunload event listener registered successfully');
+        console.log('Page unload protection configured successfully');
 
         // Clear all images button
         const clearAllBtn = document.getElementById('clearAllImages');
@@ -421,7 +416,7 @@ class SATAnnotator {    constructor() {
 
         // Determine if this is single or multi-upload for different handling
         const isSingleUpload = validFiles.length === 1;
-        console.log(`📁 ${isSingleUpload ? 'Single' : 'Multi'} upload detected: ${validFiles.length} file(s)`);
+        console.log(`${isSingleUpload ? 'Single' : 'Multi'} upload detected: ${validFiles.length} file(s)`);
           
         // Upload all valid files sequentially to preserve order
         const successfulUploads = [];
@@ -508,11 +503,10 @@ class SATAnnotator {    constructor() {
                         // CRITICAL: For multi-upload ONLY, preprocess the selected image for instant segmentation
                         // Single uploads already have preprocessing done above
                         if (!isSingleUpload) {                            // Multi-upload complete - preprocessing selected image for instant segmentation
-                            Utils.showLoading('Preparing image for annotation...');
-                            try {
+                            Utils.showLoading('Preparing image for annotation...');                            try {
                                 await api.preprocessImage(firstUploadedImage.image_id);
                                 Utils.showToast('Ready for instant annotation!', 'success');
-                                console.log('✅ Selected image preprocessed - first click will be instant');
+                                console.log('Selected image preprocessed - first click will be instant');
                             } catch (preprocessError) {
                                 console.warn('Preprocessing failed for selected image:', preprocessError);
                                 Utils.showToast('Image ready for manual annotation', 'info');
@@ -530,7 +524,7 @@ class SATAnnotator {    constructor() {
         }
     }    async loadImages() {
         try {
-            console.log('Starting to load images...');
+            console.log('Loading images from server...');
             
             // Validate session before trying to load images
             const sessionId = await api.getValidSessionId();
@@ -547,7 +541,7 @@ class SATAnnotator {    constructor() {
             // Sort images by creation time (oldest first) to maintain upload order
             this.images.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
             
-            console.log('Images loaded and sorted:', this.images);
+            console.log('Images loaded and sorted by creation time:', this.images);
             
             this.updateImagesList();
             console.log('Images list updated');
@@ -837,11 +831,11 @@ class SATAnnotator {    constructor() {
 // Initialize application when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        console.log('DOM loaded, starting SAT Annotator...');
+        console.log('DOM ready, initializing SAT Annotator...');
         window.satAnnotator = new SATAnnotator();
         window.app = window.satAnnotator; // Alias for easier access
         await window.satAnnotator.initialize();
-        console.log('SAT Annotator fully initialized');
+        console.log('SAT Annotator application ready for use');
     } catch (error) {
         console.error('Failed to start SAT Annotator:', error);
         Utils.hideLoading();
