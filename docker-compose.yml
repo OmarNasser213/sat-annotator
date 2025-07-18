@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.app
     ports:
-      - "8000:8000"
+      - '8000:8000'
     volumes:
       - ./app:/app/app
       - ./uploads:/app/uploads
@@ -12,13 +12,22 @@ services:
     environment:
       - ENVIRONMENT=development
       - SESSION_SECRET=your_session_secret_key_here
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command:
+      [
+        'uvicorn',
+        'app.main:app',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        '8000',
+        '--reload',
+      ]
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.web
     ports:
-      - "8080:8080"
+      - '8080:8080'
     volumes:
       - ./web:/web
     working_dir: /web
